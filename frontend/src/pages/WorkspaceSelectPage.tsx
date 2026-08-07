@@ -34,6 +34,8 @@ import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Input } from '../components/ui/Input'
 
+const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
+
 interface Workspace {
   workspace_id: string
   name: string
@@ -91,7 +93,7 @@ export default function WorkspaceSelectPage() {
         }
       }
 
-      const resp = await fetchApi('/api/workspaces', {
+      const resp = await fetchApi(`${API_BASE}/api/workspaces`, {
         headers: { Authorization: `Bearer ${token ?? ''}` },
       })
 
@@ -105,7 +107,7 @@ export default function WorkspaceSelectPage() {
         }
         setTokens(data.session.access_token, data.session.refresh_token)
         // Retry with fresh token
-        const retryResp = await fetchApi('/api/workspaces', {
+        const retryResp = await fetchApi(`${API_BASE}/api/workspaces`, {
           headers: { Authorization: `Bearer ${data.session.access_token}` },
         })
         if (!retryResp.ok) {
@@ -180,7 +182,7 @@ export default function WorkspaceSelectPage() {
         }
       }
 
-      const doCreate = async (t: string) => fetchApi('/api/workspaces', {
+      const doCreate = async (t: string) => fetchApi(`${API_BASE}/api/workspaces`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
         body: JSON.stringify({ name }),
