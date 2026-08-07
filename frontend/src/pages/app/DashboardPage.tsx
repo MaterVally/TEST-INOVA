@@ -10,8 +10,9 @@ import {
   RefreshCw, Sparkles, TrendingUp, UploadCloud,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../auth/AuthContext'
 import { getAccessToken } from '../../auth/tokenStore'
+import { useAuth } from '../../auth/AuthContext'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 const API = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '') + '/api'
 
@@ -70,7 +71,7 @@ export default function DashboardPage() {
   async function fetchCases() {
     setLC(true)
     try {
-      const r = await fetch(`${API}/cases`, { headers: authHdr() })
+      const r = await fetchApi(`${API}/cases`, { headers: authHdr() })
       const d = await r.json()
       setCases(Array.isArray(d) ? d : (d.cases ?? []))
     } catch { /* silent */ } finally { setLC(false) }
@@ -80,7 +81,7 @@ export default function DashboardPage() {
     if (!caseId) { setLG(false); return }
     setLG(true)
     try {
-      const r = await fetch(`${API}/graph/summary?case_id=${encodeURIComponent(caseId)}`, { headers: authHdr() })
+      const r = await fetchApi(`${API}/graph/summary?case_id=${encodeURIComponent(caseId)}`, { headers: authHdr() })
       if (r.ok) {
         const summary = await r.json() as Omit<GraphSummary, 'available'>
         setGraph({ ...summary, available: true })

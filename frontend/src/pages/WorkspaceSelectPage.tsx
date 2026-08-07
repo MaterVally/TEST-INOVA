@@ -28,6 +28,7 @@ import { getAccessToken, setTokens } from '../auth/tokenStore'
 import { supabase } from '../auth/supabaseClient'
 import { FloatingParticles } from '../components/ui/FloatingParticles'
 import { Alert } from '../components/ui/Alert'
+import { fetchApi } from '../api/fetchWithNgrok'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -90,7 +91,7 @@ export default function WorkspaceSelectPage() {
         }
       }
 
-      const resp = await fetch('/api/workspaces', {
+      const resp = await fetchApi('/api/workspaces', {
         headers: { Authorization: `Bearer ${token ?? ''}` },
       })
 
@@ -104,7 +105,7 @@ export default function WorkspaceSelectPage() {
         }
         setTokens(data.session.access_token, data.session.refresh_token)
         // Retry with fresh token
-        const retryResp = await fetch('/api/workspaces', {
+        const retryResp = await fetchApi('/api/workspaces', {
           headers: { Authorization: `Bearer ${data.session.access_token}` },
         })
         if (!retryResp.ok) {
@@ -179,7 +180,7 @@ export default function WorkspaceSelectPage() {
         }
       }
 
-      const doCreate = async (t: string) => fetch('/api/workspaces', {
+      const doCreate = async (t: string) => fetchApi('/api/workspaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
         body: JSON.stringify({ name }),

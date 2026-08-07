@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getAccessToken } from "../../auth/tokenStore";
+import { fetchApi } from "../../api/fetchWithNgrok";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -51,7 +52,7 @@ export default function CasesPage() {
   async function loadCases() {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE.replace(/\/$/, '')}/api/cases`, { headers: authHeaders() });
+      const response = await fetchApi(`${API_BASE.replace(/\/$/, '')}/api/cases`, { headers: authHeaders() });
       const data = await response.json();
       // Backend returns { cases: [...] }
       setCases(Array.isArray(data) ? data : (data.cases ?? []));
@@ -67,7 +68,7 @@ export default function CasesPage() {
   async function createCase() {
     if (!newCaseName.trim()) return;
     try {
-      const response = await fetch(`${API_BASE.replace(/\/$/, '')}/api/cases`, {
+      const response = await fetchApi(`${API_BASE.replace(/\/$/, '')}/api/cases`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ title: newCaseName }),

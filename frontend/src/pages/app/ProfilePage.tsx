@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 import { UserCircle, Save, Loader2, CheckCircle2 } from 'lucide-react'
 import { getAccessToken } from '../../auth/tokenStore'
 import { useAuth } from '../../auth/AuthContext'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 // ─── Types ───────────────────────────────────────────────
 interface UserProfile {
@@ -60,7 +61,7 @@ export default function ProfilePage() {
     if (!user?.id) return
     void (async () => {
       try {
-        const resp = await fetch(`/api/auth/profile/${encodeURIComponent(user.id)}`, {
+        const resp = await fetchApi(`/api/auth/profile/${encodeURIComponent(user.id)}`, {
           headers: authHeaders(workspaceId),
         })
         if (!resp.ok) throw new Error(`Error ${resp.status}`)
@@ -84,7 +85,7 @@ export default function ProfilePage() {
     setError(null)
     setSaved(false)
     try {
-      const resp = await fetch(`/api/auth/profile/${encodeURIComponent(user.id)}`, {
+      const resp = await fetchApi(`/api/auth/profile/${encodeURIComponent(user.id)}`, {
         method: 'PATCH',
         headers: authHeaders(workspaceId),
         body: JSON.stringify({

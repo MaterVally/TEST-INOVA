@@ -26,6 +26,7 @@ import {
   User,
 } from 'lucide-react'
 import { getAccessToken } from '../../auth/tokenStore'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -204,7 +205,7 @@ export default function AIAssistantPage() {
 
       const token = getAccessToken()
 
-      const resp = await fetch(`${API_BASE.replace(/\/$/, '')}/api/query/`, {
+      const resp = await fetchApi(`${API_BASE.replace(/\/$/, '')}/api/query/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

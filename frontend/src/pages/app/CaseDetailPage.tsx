@@ -85,7 +85,7 @@ export default function CaseDetailPage() {
     if (!caseId) return
     void (async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
+        const resp = await fetchApi(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
           headers: authHeaders(workspaceId),
         })
         if (!resp.ok) throw new Error(`Case not found (${resp.status})`)
@@ -106,7 +106,7 @@ export default function CaseDetailPage() {
     if (!caseId) return
     setSaving(true)
     try {
-      const resp = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
+      const resp = await fetchApi(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
         method: 'PATCH',
         headers: authHeaders(workspaceId),
         body: JSON.stringify({
@@ -132,7 +132,7 @@ export default function CaseDetailPage() {
     if (!caseId) return
     setDeleting(true)
     try {
-      const resp = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
+      const resp = await fetchApi(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
         method: 'DELETE',
         headers: authHeaders(workspaceId),
       })

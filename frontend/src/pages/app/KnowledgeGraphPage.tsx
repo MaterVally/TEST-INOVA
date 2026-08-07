@@ -12,6 +12,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { AlertTriangle, Database, Network, RefreshCw, Search, Share2, X } from 'lucide-react'
 import { getAccessToken } from '../../auth/tokenStore'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types matching the /api/graph/network response
@@ -156,7 +157,7 @@ export default function KnowledgeGraphPage() {
       const headers = { Authorization: `Bearer ${token ?? ''}` }
 
       // Check case status before hitting the graph endpoint
-      const caseResp = await fetch(`${apiBase}/api/cases/${caseId}`, { headers })
+      const caseResp = await fetchApi(`${apiBase}/api/cases/${caseId}`, { headers })
       if (caseResp.ok) {
         const caseData = await caseResp.json() as { status?: string }
         if (caseData.status === 'processing') {
@@ -171,7 +172,7 @@ export default function KnowledgeGraphPage() {
         }
       }
 
-      const response = await fetch(`${apiBase}/api/graph/network?case_id=${encodeURIComponent(caseId)}`, { headers })
+      const response = await fetchApi(`${apiBase}/api/graph/network?case_id=${encodeURIComponent(caseId)}`, { headers })
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))

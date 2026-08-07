@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { getAccessToken } from '../../auth/tokenStore'
 import { useAuth } from '../../auth/AuthContext'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 // ─── Types ───────────────────────────────────────────────
 type Role = 'Admin' | 'Analyst' | 'Viewer'
@@ -58,7 +59,7 @@ export default function SettingsPage() {
     if (!workspaceId) return
     void (async () => {
       try {
-        const resp = await fetch('/api/workspaces', { headers: authHeaders(workspaceId) })
+        const resp = await fetchApi('/api/workspaces', { headers: authHeaders(workspaceId) })
         if (!resp.ok) return
         const data = await resp.json()
         const ws = (Array.isArray(data) ? data : []).find((w: any) => w.workspace_id === workspaceId)
@@ -78,7 +79,7 @@ export default function SettingsPage() {
     setError(null)
     setInviteSuccess(false)
     try {
-      const resp = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/members`, {
+      const resp = await fetchApi(`/api/workspaces/${encodeURIComponent(workspaceId)}/members`, {
         method: 'POST',
         headers: authHeaders(workspaceId),
         body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
@@ -103,7 +104,7 @@ export default function SettingsPage() {
     setDeleting(true)
     setError(null)
     try {
-      const resp = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}`, {
+      const resp = await fetchApi(`/api/workspaces/${encodeURIComponent(workspaceId)}`, {
         method: 'DELETE',
         headers: authHeaders(workspaceId),
       })

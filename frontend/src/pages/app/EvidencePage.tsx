@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getAccessToken } from '../../auth/tokenStore'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 const API = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '') + '/api'
 
@@ -97,9 +98,9 @@ export default function EvidencePage() {
     try {
       const qs = `?case_id=${encodeURIComponent(caseId)}`
       const [rSum, rEnt, rRel] = await Promise.all([
-        fetch(`${API}/graph/summary${qs}`,       { headers: authHdr() }),
-        fetch(`${API}/graph/entities${qs}&limit=300`, { headers: authHdr() }),
-        fetch(`${API}/graph/relationships${qs}&limit=500`, { headers: authHdr() }),
+        fetchApi(`${API}/graph/summary${qs}`,       { headers: authHdr() }),
+        fetchApi(`${API}/graph/entities${qs}&limit=300`, { headers: authHdr() }),
+        fetchApi(`${API}/graph/relationships${qs}&limit=500`, { headers: authHdr() }),
       ])
       if (!rSum.ok) throw new Error(`Graph summary: ${rSum.status}`)
       if (!rEnt.ok) throw new Error(`Entities: ${rEnt.status}`)

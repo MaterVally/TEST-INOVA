@@ -141,6 +141,7 @@ function buildHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',   // bypass ngrok interstitial page
     ...(extra as Record<string, string> | undefined),
   }
   const token = getAccessToken()

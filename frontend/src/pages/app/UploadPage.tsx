@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getAccessToken } from '../../auth/tokenStore'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
 
@@ -120,7 +121,7 @@ export default function UploadPage() {
     setLoadingCases(true)
     try {
       const token = getAccessToken()
-      const r = await fetch(`${API_BASE}/api/cases`, {
+      const r = await fetchApi(`${API_BASE}/api/cases`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (r.ok) {
@@ -217,7 +218,7 @@ export default function UploadPage() {
         formData.append('files', targetFile.file)
         const activeCaseId = localStorage.getItem('innova_active_case_id')
         if (activeCaseId) formData.append('case_id', activeCaseId)
-        const resp = await fetch(`${API_BASE}/api/upload/`, {
+        const resp = await fetchApi(`${API_BASE}/api/upload/`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token ?? ''}`,

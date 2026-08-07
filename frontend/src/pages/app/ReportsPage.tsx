@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getAccessToken } from '../../auth/tokenStore'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 const API = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '') + '/api'
 
@@ -97,7 +98,7 @@ export default function ReportsPage() {
     if (!caseId || !question.trim()) return
     setGenerating(true); setError(null); setReport(null)
     try {
-      const resp = await fetch(`${API}/report/`, {
+      const resp = await fetchApi(`${API}/report/`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', ...authHdr() },
         body:    JSON.stringify({ case_id: caseId, question: question.trim(), top_k: 10 }),
@@ -118,7 +119,7 @@ export default function ReportsPage() {
     if (!caseId) return
     setFetching(true); setError(null)
     try {
-      const resp = await fetch(`${API}/report/${encodeURIComponent(caseId)}`, { headers: authHdr() })
+      const resp = await fetchApi(`${API}/report/${encodeURIComponent(caseId)}`, { headers: authHdr() })
       if (!resp.ok) {
         if (resp.status === 404) throw new Error('No report found for this case. Generate one first.')
         throw new Error(`Error ${resp.status}`)
