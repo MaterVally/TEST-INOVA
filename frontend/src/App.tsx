@@ -28,6 +28,7 @@ import RegisterPage        from './pages/RegisterPage'
 import PasswordResetPage   from './pages/PasswordResetPage'
 import WorkspaceSelectPage from './pages/WorkspaceSelectPage'
 import WorkspacePlaceholder from './pages/app/WorkspacePlaceholder'
+<<<<<<< Updated upstream
 import DashboardPage        from './pages/app/DashboardPage'
 import UploadPage           from './pages/app/UploadPage'
 import KnowledgeGraphPage   from './pages/app/KnowledgeGraphPage'
@@ -35,6 +36,18 @@ import AIAssistantPage      from './pages/app/AIAssistantPage'
 import CasesPage            from './pages/app/CasesPage'
 import ReportsPage          from './pages/app/ReportsPage'
 import EvidencePage         from './pages/app/EvidencePage'
+=======
+import DashboardPage from './pages/app/DashboardPage'
+import UploadPage from './pages/app/UploadPage'
+import KnowledgeGraphPage from './pages/app/KnowledgeGraphPage.tsx'
+import CasesPage from './pages/app/CasesPage'
+import AIAssistantPage from './pages/app/AIAssistantPage'
+import ReportsPage from './pages/app/ReportsPage'
+import EvidencePage from './pages/app/EvidencePage'
+import ProfilePage from './pages/app/ProfilePage'
+import SettingsPage from './pages/app/SettingsPage'
+import CaseDetailPage from './pages/app/CaseDetailPage'
+>>>>>>> Stashed changes
 
 // ─────────────────────────────────────────────────────────
 // Root redirect
@@ -126,7 +139,7 @@ function AnimatedRoutes() {
             {/* Main section */}
             <Route path="dashboard"      element={<DashboardPage />} />
             <Route path="cases"          element={<CasesPage />} />
-            <Route path="cases/:id"      element={<WorkspacePlaceholder title="Case Detail" />} />
+            <Route path="cases/:id"      element={<CaseDetailPage />} />
             <Route path="upload"         element={<UploadPage />} />
 
             {/* Intelligence section */}
@@ -136,8 +149,8 @@ function AnimatedRoutes() {
             <Route path="reports"         element={<ReportsPage />} />
 
             {/* Account section */}
-            <Route path="settings"  element={<WorkspacePlaceholder />} />
-            <Route path="profile"   element={<WorkspacePlaceholder />} />
+            <Route path="settings"  element={<SettingsPage />} />
+            <Route path="profile"   element={<ProfilePage />} />
 
             {/* Catch-all within /app */}
             <Route path="*" element={<WorkspacePlaceholder title="Not Found" description="This page doesn't exist." />} />

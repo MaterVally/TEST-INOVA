@@ -191,7 +191,7 @@ class MMKGBuilder:
             return
 
         logger.info(f"🔗 步骤 4/5 — 图谱融合 ({len(img_ids)} 张图像)")
-        await fusion(img_ids)
+        await fusion(img_ids, working_dir=self.working_dir)
 
     def _step_save_output(self):
         logger.info("💾 步骤 5a/5 — 保存最终图谱")

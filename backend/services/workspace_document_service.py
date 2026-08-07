@@ -150,9 +150,11 @@ class WorkspaceDocumentService:
         start = time.time()
 
         # GraphRAGQuery reads graph from working_dir and embeddings from output_dir
+        # Pass workspace-scoped cache_path so LLM responses are isolated per user/case
         query_engine = GraphRAGQuery(
             working_dir=str(self.ws.working),
             embedding_path=str(self.ws.output / f"{MMKG_NAME}_emb.npy"),
+            cache_path=str(self.ws.cache),
         )
 
         from backend.config import QueryParam

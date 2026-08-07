@@ -26,20 +26,21 @@ from ..llm import (
 from ..utils.base import ensure_quoted, load_json, logger
 
 # ============================================================================
-# Data loaders
+# Data loaders — accept explicit working_dir to support workspace isolation
 # ============================================================================
 
-def _get_json_path(filename: str) -> str:
-    return os.path.join(parameter.WORKING_DIR, filename)
+def _get_json_path(filename: str, working_dir: str | None = None) -> str:
+    base = working_dir if working_dir else parameter.WORKING_DIR
+    return os.path.join(base, filename)
 
-def get_image_data() -> dict:
-    return load_json(_get_json_path("kv_store_image_data.json")) or {}
+def get_image_data(working_dir: str | None = None) -> dict:
+    return load_json(_get_json_path("kv_store_image_data.json", working_dir)) or {}
 
-def get_chunk_knowledge_graph() -> dict:
-    return load_json(_get_json_path("kv_store_chunk_knowledge_graph.json")) or {}
+def get_chunk_knowledge_graph(working_dir: str | None = None) -> dict:
+    return load_json(_get_json_path("kv_store_chunk_knowledge_graph.json", working_dir)) or {}
 
-def get_text_chunks() -> dict:
-    return load_json(_get_json_path("kv_store_text_chunks.json")) or {}
+def get_text_chunks(working_dir: str | None = None) -> dict:
+    return load_json(_get_json_path("kv_store_text_chunks.json", working_dir)) or {}
 
 # ============================================================================
 # Context helpers
@@ -168,8 +169,8 @@ def _prepare_and_cluster_entities(nearby_text_entities, nearby_relationships):
     return embeddings, labels
 
 
-def align_single_image_entity(img_entity_name, text_chunks):
-    image_data  = get_image_data()
+def align_single_image_entity(img_entity_name, text_chunks, working_dir: str | None = None):
+    image_data  = get_image_data(working_dir)
     entity_info = image_data.get(img_entity_name, {})
     image_path  = entity_info.get("image_path")
     description = entity_info.get("description", "")
@@ -278,8 +279,9 @@ Include only one JSON list as the output, strictly following the structure above
 # Image entity operations
 # ============================================================================
 
-def extract_image_entities(img_entity_name):
-    path = os.path.join(parameter.WORKING_DIR, f"images/{img_entity_name}/graph_{img_entity_name}_entity_relation.graphml")
+def extract_image_entities(img_entity_name, working_dir: str | None = None):
+    base = working_dir if working_dir else parameter.WORKING_DIR
+    path = os.path.join(base, f"images/{img_entity_name}/graph_{img_entity_name}_entity_relation.graphml")
     if not os.path.exists(path):
         logger.warning(f"⚠️  未找到GraphML文件: {path}")
         return []
@@ -308,11 +310,11 @@ def enhance_image_entities(image_entities, nearby_chunks):
     return normalize_to_json_list(get_llm_response(prompt, PROMPTS["enhance_image_entity_system"]))
 
 
-def image_knowledge_graph_alignment(image_entity_name):
-    image_data  = get_image_data()
-    chunk_kg    = get_chunk_knowledge_graph()
+def image_knowledge_graph_alignment(image_entity_name, working_dir: str | None = None):
+    image_data  = get_image_data(working_dir)
+    chunk_kg    = get_chunk_knowledge_graph(working_dir)
     chunk_index = image_data[image_entity_name].get("chunk_order_index", 0)
-    image_entities  = extract_image_entities(image_entity_name)
+    image_entities  = extract_image_entities(image_entity_name, working_dir)
     filtered        = [e for e in image_entities if e["entity_type"] not in ["ORI_IMG", "IMG"]]
     nearby_entities = get_nearby_entities(chunk_kg, chunk_index)
     nearby_rels     = get_nearby_relationships(chunk_kg, chunk_index)
@@ -320,12 +322,13 @@ def image_knowledge_graph_alignment(image_entity_name):
     return judge_text_entity_alignment_clustering(img_with_labels, text_clusters)
 
 
-def enhanced_image_knowledge_graph(aligned_entities, image_entity_name):
-    image_data   = get_image_data()
-    text_chunks  = get_text_chunks()
-    img_kg_path  = os.path.join(parameter.WORKING_DIR, f"images/{image_entity_name}/graph_{image_entity_name}_entity_relation.graphml")
-    enhanced_path = os.path.join(parameter.WORKING_DIR, f"images/{image_entity_name}/enhanced_graph_{image_entity_name}_entity_relation.graphml")
-    image_entities = extract_image_entities(image_entity_name)
+def enhanced_image_knowledge_graph(aligned_entities, image_entity_name, working_dir: str | None = None):
+    base         = working_dir if working_dir else parameter.WORKING_DIR
+    image_data   = get_image_data(working_dir)
+    text_chunks  = get_text_chunks(working_dir)
+    img_kg_path  = os.path.join(base, f"images/{image_entity_name}/graph_{image_entity_name}_entity_relation.graphml")
+    enhanced_path = os.path.join(base, f"images/{image_entity_name}/enhanced_graph_{image_entity_name}_entity_relation.graphml")
+    image_entities = extract_image_entities(image_entity_name, working_dir)
     filtered       = [e for e in image_entities if e["entity_type"] not in ["ORI_IMG", "IMG"]]
     chunk_index    = image_data[image_entity_name].get("chunk_order_index", 0)
     nearby_chunks  = get_nearby_chunks(text_chunks, chunk_index)
@@ -346,13 +349,14 @@ def enhanced_image_knowledge_graph(aligned_entities, image_entity_name):
     nx.write_graphml(G, enhanced_path)
     return enhanced_path
 
-def image_knowledge_graph_update(enhanced_path, image_entity_name):
-    image_data  = get_image_data()
-    text_chunks = get_text_chunks()
-    chunk_kg    = get_chunk_knowledge_graph()
-    new_path    = os.path.join(parameter.WORKING_DIR, f"images/{image_entity_name}/new_graph_{image_entity_name}_entity_relation.graphml")
+def image_knowledge_graph_update(enhanced_path, image_entity_name, working_dir: str | None = None):
+    base        = working_dir if working_dir else parameter.WORKING_DIR
+    image_data  = get_image_data(working_dir)
+    text_chunks = get_text_chunks(working_dir)
+    chunk_kg    = get_chunk_knowledge_graph(working_dir)
+    new_path    = os.path.join(base, f"images/{image_entity_name}/new_graph_{image_entity_name}_entity_relation.graphml")
 
-    image_entity    = align_single_image_entity(image_entity_name, text_chunks)
+    image_entity    = align_single_image_entity(image_entity_name, text_chunks, working_dir)
     chunk_index     = image_data[image_entity_name].get("chunk_order_index", 0)
     nearby_chunks   = get_nearby_chunks(text_chunks, chunk_index)
     nearby_entities = get_nearby_entities(chunk_kg, chunk_index)
@@ -408,8 +412,9 @@ def image_knowledge_graph_update(enhanced_path, image_entity_name):
     return new_path
 
 
-def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_entity_name):
-    merged_path  = os.path.join(parameter.WORKING_DIR, f"graph_merged_{image_entity_name}.graphml")
+def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_entity_name, working_dir: str | None = None):
+    base         = working_dir if working_dir else parameter.WORKING_DIR
+    merged_path  = os.path.join(base, f"graph_merged_{image_entity_name}.graphml")
     image_graph  = nx.read_graphml(image_graph_path)
     text_graph   = nx.read_graphml(text_graph_path)
     if image_graph is None or text_graph is None:
@@ -459,17 +464,28 @@ def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_enti
 # Entry point
 # ============================================================================
 
-async def fusion(img_ids: list[str]) -> str:
-    graph_path = os.path.join(parameter.WORKING_DIR, "graph_chunk_entity_relation.graphml")
+async def fusion(img_ids: list[str], working_dir: str | None = None) -> str:
+    """Run cross-modal graph fusion for all image entity IDs.
+
+    Parameters
+    ----------
+    img_ids:
+        List of image entity names to fuse into the text graph.
+    working_dir:
+        Workspace-scoped working directory. Defaults to global WORKING_DIR
+        if not supplied (legacy / CLI usage).
+    """
+    base       = working_dir if working_dir else parameter.WORKING_DIR
+    graph_path = os.path.join(base, "graph_chunk_entity_relation.graphml")
     if not img_ids:
         return graph_path
     for image_name in tqdm(img_ids, desc="🔗 图谱融合", unit="张"):
-        merged_path = os.path.join(parameter.WORKING_DIR, f"graph_merged_{image_name}.graphml")
+        merged_path = os.path.join(base, f"graph_merged_{image_name}.graphml")
         if os.path.exists(merged_path):
             graph_path = merged_path
             continue
-        aligned       = image_knowledge_graph_alignment(image_name)
-        enhanced_path = enhanced_image_knowledge_graph(aligned, image_name)
-        updated_path  = image_knowledge_graph_update(enhanced_path, image_name)
-        graph_path    = merge_graphs(updated_path, graph_path, aligned, image_name)
+        aligned       = image_knowledge_graph_alignment(image_name, working_dir)
+        enhanced_path = enhanced_image_knowledge_graph(aligned, image_name, working_dir)
+        updated_path  = image_knowledge_graph_update(enhanced_path, image_name, working_dir)
+        graph_path    = merge_graphs(updated_path, graph_path, aligned, image_name, working_dir)
     return graph_path

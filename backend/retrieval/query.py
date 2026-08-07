@@ -23,9 +23,9 @@ from ..utils.base import (
 
 
 class GraphRAGQuery:
-    def __init__(self, graph_path=None, embedding_path=None, working_dir=None):
+    def __init__(self, graph_path=None, embedding_path=None, working_dir=None, cache_path=None):
         self.working_dir    = working_dir or parameter.WORKING_DIR
-        self.cache_path     = parameter.CACHE_PATH
+        self.cache_path     = cache_path or parameter.CACHE_PATH  # T4: accept per-workspace cache path
         self.embed_model    = parameter.EMBED_MODEL
 
         _namespace, default_graph_path = get_latest_graphml_file(self.working_dir)
