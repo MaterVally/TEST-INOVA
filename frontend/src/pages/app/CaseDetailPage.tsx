@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { getAccessToken } from '../../auth/tokenStore'
 import { useAuth } from '../../auth/AuthContext'
+import { fetchApi } from '../../api/fetchWithNgrok'
 
 // ─── Types ───────────────────────────────────────────────
 interface Case {
