@@ -11,12 +11,12 @@ Responsibilities
 4. Return clean structured response — answer + evidence
 """
 
-from pathlib import Path
 import time
+from pathlib import Path
 
+from backend.compliance.evidence_engine import EvidenceEngine
 from backend.config import settings
 from backend.retrieval.query import GraphRAGQuery
-from backend.compliance.evidence_engine import EvidenceEngine
 
 
 class QueryService:

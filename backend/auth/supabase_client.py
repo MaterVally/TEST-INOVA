@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from supabase._async.client import AsyncClient, create_client
 
-from backend.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+from backend.config import SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
 _client: AsyncClient | None = None
 

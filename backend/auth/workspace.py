@@ -60,7 +60,7 @@ class UserWorkspace:
     # Helpers
     # ------------------------------------------------------------------
 
-    def ensure(self) -> "UserWorkspace":
+    def ensure(self) -> UserWorkspace:
         """Create all workspace subdirectories if they do not exist.
 
         Returns self for chaining::

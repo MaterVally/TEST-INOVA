@@ -12,13 +12,13 @@ Responsibilities:
 5. Return metadata to API
 """
 
-from pathlib import Path
 import time
 import uuid
+from pathlib import Path
 
 import networkx as nx
 
-from backend.builder import MMKGBuilder, _SUPPORTED_EXTS
+from backend.builder import _SUPPORTED_EXTS, MMKGBuilder
 from backend.config import settings
 
 

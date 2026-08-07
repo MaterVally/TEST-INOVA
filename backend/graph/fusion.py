@@ -3,6 +3,7 @@ Knowledge-graph fusion: aligns image KGs with the text KG and merges them.
 """
 import math
 import os
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import base64
@@ -11,15 +12,18 @@ import xml.etree.ElementTree as ET
 import networkx as nx
 import numpy as np
 from sklearn.cluster import DBSCAN
-from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
-from ..utils.base import logger, load_json, ensure_quoted
-from ..core.prompt import PROMPTS, GRAPH_FIELD_SEP
-from ..llm import get_llm_response, get_mmllm_response, normalize_to_json, normalize_to_json_list
-from ..config.settings import EMBED_MODEL, WORKING_DIR
 from ..config import settings as parameter
-
+from ..config.settings import EMBED_MODEL
+from ..core.prompt import GRAPH_FIELD_SEP, PROMPTS
+from ..llm import (
+    get_llm_response,
+    get_mmllm_response,
+    normalize_to_json,
+    normalize_to_json_list,
+)
+from ..utils.base import ensure_quoted, load_json, logger
 
 # ============================================================================
 # Data loaders
@@ -48,17 +52,29 @@ def get_nearby_chunks(data: dict, index: int) -> list[str]:
 def get_nearby_entities(data: dict, index: int) -> list[dict]:
     indices = range(max(0, index - 1), min(len(data), index + 2))
     entities = []
-    for i in indices:
-        for entity in data.get(str(i), {}).get("entities", []):
-            entities.append({k: v for k, v in entity.items() if k != "source_id"})
+    for chunk_index in indices:
+        entities.extend(
+            {
+                key: value
+                for key, value in entity.items()
+                if key != "source_id"
+            }
+            for entity in data.get(str(chunk_index), {}).get("entities", [])
+        )
     return entities
 
 def get_nearby_relationships(data: dict, index: int) -> list[dict]:
     indices = range(max(0, index - 1), min(len(data), index + 2))
     relationships = []
-    for i in indices:
-        for rel in data.get(str(i), {}).get("relationships", []):
-            relationships.append({k: v for k, v in rel.items() if k != "source_id"})
+    for chunk_index in indices:
+        relationships.extend(
+            {
+                key: value
+                for key, value in relationship.items()
+                if key != "source_id"
+            }
+            for relationship in data.get(str(chunk_index), {}).get("relationships", [])
+        )
     return relationships
 
 def _sanitize_embeddings(embeddings: np.ndarray) -> np.ndarray:
@@ -177,7 +193,7 @@ def get_possible_entities_image_clustering(image_entity_description, nearby_text
         return []
     input_embedding = EMBED_MODEL.encode([image_entity_description])
     target_label = _classify_by_nearest_neighbor(input_embedding, embeddings, labels, n_neighbors=3)[0]
-    return [e for e, label in zip(nearby_text_entities, labels) if label == target_label]
+    return [e for e, label in zip(nearby_text_entities, labels, strict=False) if label == target_label]
 
 
 def get_possible_entities_text_clustering(filtered_image_entities, nearby_text_entities, nearby_relationships):
@@ -190,7 +206,7 @@ def get_possible_entities_text_clustering(filtered_image_entities, nearby_text_e
     if filtered_image_entities:
         img_embeddings = EMBED_MODEL.encode([e["description"] for e in filtered_image_entities])
         img_labels     = _classify_by_nearest_neighbor(img_embeddings, embeddings, labels)
-        for entity, label in zip(filtered_image_entities, img_labels):
+        for entity, label in zip(filtered_image_entities, img_labels, strict=False):
             image_entity_with_labels.append({
                 "entity_name": entity["entity_name"], "label": label,
                 "description": entity["description"], "entity_type": entity.get("entity_type", "image")
@@ -198,8 +214,13 @@ def get_possible_entities_text_clustering(filtered_image_entities, nearby_text_e
     text_clustering_results = []
     for label in set(labels):
         cluster_entities = [
-            {"entity_name": e["entity_name"], "entity_type": e["entity_type"], "description": e["description"]}
-            for e, l in zip(nearby_text_entities, labels) if l == label
+            {
+                "entity_name": entity["entity_name"],
+                "entity_type": entity["entity_type"],
+                "description": entity["description"],
+            }
+            for entity, cluster_label in zip(nearby_text_entities, labels, strict=False)
+            if cluster_label == label
         ]
         text_clustering_results.append({"label": label, "entities": cluster_entities})
     return image_entity_with_labels, text_clustering_results
@@ -270,10 +291,12 @@ def extract_image_entities(img_entity_name):
         entity_name = (node.get("id") or "").strip('"')
         entity_type = description = ""
         for data in node.findall("graphml:data", ns):
-            key  = data.get("key")
+            key = data.get("key")
             text = (data.text or "").strip('"')
-            if key == "d0":   entity_type  = text
-            elif key == "d1": description  = text
+            if key == "d0":
+                entity_type = text
+            elif key == "d1":
+                description = text
         entities.append({"entity_name": entity_name, "entity_type": entity_type, "description": description})
     return entities
 
@@ -405,14 +428,14 @@ def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_enti
         src_id_img = image_graph.nodes.get(target, {}).get("source_id", "")
         src_id_txt = text_graph.nodes.get(ensure_quoted(src_text[0]), {}).get("source_id", "")
         combined_source_id = GRAPH_FIELD_SEP.join(filter(None, [src_id_img, src_id_txt]))
-        for entity in list(set(src_image + src_text)):
-            entity = ensure_quoted(entity)
-            if entity == target or entity not in merged.nodes:
+        for candidate_entity in list(set(src_image + src_text)):
+            normalized_entity = ensure_quoted(candidate_entity)
+            if normalized_entity == target or normalized_entity not in merged.nodes:
                 continue
-            for neighbor in list(merged.neighbors(entity)):
+            for neighbor in list(merged.neighbors(normalized_entity)):
                 if not merged.has_edge(target, neighbor):
                     merged.add_edge(target, neighbor)
-                edge_data        = merged.get_edge_data(entity, neighbor)
+                edge_data = merged.get_edge_data(normalized_entity, neighbor)
                 target_edge_data = merged.get_edge_data(target, neighbor)
                 if target_edge_data:
                     for key in edge_data:
@@ -420,7 +443,7 @@ def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_enti
                             target_edge_data[key] = edge_data.get(key, target_edge_data.get(key))
                 else:
                     merged[target][neighbor].update(edge_data)
-            merged.remove_node(entity)
+            merged.remove_node(normalized_entity)
         if target not in merged.nodes:
             merged.add_node(target)
         merged.nodes[target].update({"entity_type": entity_info["entity_type"], "description": entity_info["description"], "source_id": combined_source_id})

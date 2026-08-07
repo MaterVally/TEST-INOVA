@@ -21,7 +21,7 @@ from backend.auth.middleware.jwt_middleware import AuthContext, get_current_user
 logger = logging.getLogger(__name__)
 
 # Re-export get_current_user so callers only need to import from this module
-__all__ = ["get_current_user", "get_current_case"]
+__all__ = ["get_current_case", "get_current_user"]
 
 
 async def get_current_case(
@@ -40,5 +40,5 @@ async def get_current_case(
     """
     # Import here to avoid circular imports (case_service imports supabase_client,
     # not auth.dependencies)
-    from backend.auth.services.case_service import get_case  # noqa: PLC0415
+    from backend.auth.services.case_service import get_case
     return await get_case(case_id=case_id, user_id=auth.user_id)

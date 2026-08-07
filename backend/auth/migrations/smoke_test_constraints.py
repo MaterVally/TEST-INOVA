@@ -20,6 +20,7 @@ The tests will be skipped automatically if:
 
 import os
 import uuid
+
 import pytest
 
 # ---------------------------------------------------------------------------
@@ -63,7 +64,7 @@ def _connect():
     or the database is unreachable.
     """
     try:
-        import psycopg2  # noqa: PLC0415
+        import psycopg2
     except ImportError:
         return None
 
@@ -222,7 +223,7 @@ def test_workspace_member_cap_functional(db_conn):
 
     Validates: Requirements 7.5, 7.11
     """
-    import psycopg2  # noqa: PLC0415
+    import psycopg2
 
     conn = _connect()
     if conn is None:
@@ -246,7 +247,7 @@ def test_workspace_member_cap_functional(db_conn):
                 # We bypass the workspaces FK by inserting into workspace_members
                 # only if the table allows a non-existent workspace_id — otherwise
                 # we skip gracefully.
-                for i in range(50):
+                for _i in range(50):
                     cur.execute(
                         """
                         INSERT INTO public.workspace_members

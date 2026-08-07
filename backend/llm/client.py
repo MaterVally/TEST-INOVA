@@ -4,17 +4,22 @@ LLM and multimodal LLM client — async/sync wrappers with KV caching.
 import ast
 import json
 import re
-from typing import Any, List, Optional
+from typing import Any
 
 import numpy as np
 from openai import AsyncOpenAI, OpenAI
 
-from ..utils.base import compute_args_hash, logger, wrap_embedding_func_with_attrs
 from ..config.settings import (
-    API_BASE, API_KEY, EMBED_MODEL,
-    MM_API_BASE, MM_API_KEY, MM_MODEL_NAME, MODEL_NAME,
+    API_BASE,
+    API_KEY,
+    EMBED_MODEL,
+    MM_API_BASE,
+    MM_API_KEY,
+    MM_MODEL_NAME,
+    MODEL_NAME,
 )
 from ..storage.kv_storage import BaseKVStorage
+from ..utils.base import compute_args_hash, logger, wrap_embedding_func_with_attrs
 
 # ============================================================================
 # Singleton client pool
@@ -54,12 +59,14 @@ async def local_embedding(texts: list[str]) -> np.ndarray:
 
 async def model_if_cache(
     prompt: str,
-    system_prompt: str = None,
-    history_messages: List[dict] = [],
-    **kwargs
+    system_prompt: str | None = None,
+    history_messages: list[dict] | None = None,
+    **kwargs,
 ) -> str:
+    if history_messages is None:
+        history_messages = []
     client = _get_client(is_async=True, is_multimodal=False)
-    hashing_kv: Optional[BaseKVStorage] = kwargs.pop("hashing_kv", None)
+    hashing_kv: BaseKVStorage | None = kwargs.pop("hashing_kv", None)
 
     messages = []
     if system_prompt:
@@ -108,11 +115,13 @@ async def multimodel_if_cache(
     user_prompt: str,
     img_base: str,
     system_prompt: str,
-    history_messages: List[dict] = [],
-    **kwargs
+    history_messages: list[dict] | None = None,
+    **kwargs,
 ) -> str:
+    if history_messages is None:
+        history_messages = []
     client = _get_client(is_async=True, is_multimodal=True)
-    hashing_kv: Optional[BaseKVStorage] = kwargs.pop("hashing_kv", None)
+    hashing_kv: BaseKVStorage | None = kwargs.pop("hashing_kv", None)
 
     messages = []
     messages.extend(history_messages)
@@ -164,7 +173,7 @@ def get_mmllm_response(cur_prompt: str, system_content: str, img_base: str) -> s
 # JSON helpers
 # ============================================================================
 
-def normalize_to_json(output: str) -> Optional[dict]:
+def normalize_to_json(output: str) -> dict | None:
     output = output.strip()
     match = re.search(r"```(?:json)?\s*(.*?)```", output, re.DOTALL)
     if match:
@@ -191,7 +200,7 @@ def normalize_to_json(output: str) -> Optional[dict]:
         return None
 
 
-def normalize_to_json_list(output: str) -> List[Any]:
+def normalize_to_json_list(output: str) -> list[Any]:
     cleaned = output.replace('\\"', '"').strip()
     match = re.search(r"\[\s*(\{.*?\})*?\s*]", cleaned, re.DOTALL)
     if not match:

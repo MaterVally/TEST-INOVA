@@ -68,7 +68,7 @@ def is_float_regex(value: str) -> bool:
 def list_of_list_to_csv(data: list[list[str]]) -> str:
     return "\n".join(
         [
-            ",".join([f'"{str(ii)}"' if "," in str(ii) else str(ii) for ii in i])
+            ",".join([f'"{ii!s}"' if "," in str(ii) else str(ii) for ii in i])
             for i in data
         ]
     )

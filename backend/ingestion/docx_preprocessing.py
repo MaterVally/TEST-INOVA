@@ -22,8 +22,6 @@ from __future__ import annotations
 import os
 import shutil
 import zipfile
-from pathlib import Path
-from typing import List, Dict, Tuple
 
 from docx import Document
 
@@ -57,7 +55,7 @@ class DocxChunking:
 
     async def process(
         self
-    ) -> Tuple[List[str], List[Dict]]:
+    ) -> tuple[list[str], list[dict]]:
 
         logger.info("📄 Processing DOCX document...")
 
@@ -77,7 +75,7 @@ class DocxChunking:
     # Text Extraction
     # ---------------------------------------------------------
 
-    def _extract_text(self) -> List[str]:
+    def _extract_text(self) -> list[str]:
 
         document = Document(
             self.docx_path
@@ -116,7 +114,7 @@ class DocxChunking:
     # Embedded Image Extraction
     # ---------------------------------------------------------
 
-    def _extract_images(self) -> List[Dict]:
+    def _extract_images(self) -> list[dict]:
 
         extracted = []
 

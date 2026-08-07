@@ -24,7 +24,6 @@ TextChunking while image metadata is preserved for multimodal retrieval.
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Tuple
 
 from ..utils.base import logger
 from .image_utils import copy_image_to_working_dir, describe_image_sync
@@ -45,7 +44,7 @@ class ImageChunking:
     # Public entry
     # ------------------------------------------------------------------
 
-    async def process(self) -> Tuple[List[str], List[Dict]]:
+    async def process(self) -> tuple[list[str], list[dict]]:
         logger.info("🖼 Processing standalone image...")
 
         image_info = copy_image_to_working_dir(

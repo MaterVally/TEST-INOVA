@@ -14,23 +14,44 @@ from __future__ import annotations
 import json
 import logging
 import time
+from datetime import UTC
 from pathlib import Path
 
 import networkx as nx
 
 from backend.auth.workspace import UserWorkspace
 from backend.builder import MMKGBuilder
+from backend.compliance.evidence_engine import EvidenceEngine
 from backend.config import MMKG_NAME
 from backend.retrieval.query import GraphRAGQuery
-from backend.compliance.evidence_engine import EvidenceEngine
 
 logger = logging.getLogger(__name__)
+
+
+async def _update_case_status(user_id: str, case_id: str, status: str) -> None:
+    """Best-effort update of public.cases.status — never raises."""
+    try:
+        from backend.auth.supabase_client import get_supabase_client
+        supabase = await get_supabase_client()
+        await (
+            supabase
+            .from_("cases")
+            .update({"status": status})
+            .eq("id", case_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        logger.info("Case %s status → %s", case_id, status)
+    except Exception as exc:
+        logger.warning("Could not update case status for %s: %s", case_id, exc)
 
 
 class WorkspaceDocumentService:
     """Process documents inside a user's isolated workspace."""
 
     def __init__(self, user_id: str, case_id: str):
+        self.user_id = user_id
+        self.case_id = case_id
         self.ws = UserWorkspace(user_id=user_id, case_id=case_id).ensure()
 
     # ------------------------------------------------------------------
@@ -87,6 +108,10 @@ class WorkspaceDocumentService:
 
         # Persist a report.json in output/
         self._save_report_json(graph_summary, proc_results)
+
+        # Mark case status in DB: completed if all files processed, failed otherwise
+        final_status = "completed" if len(failed) == 0 else "failed"
+        await _update_case_status(self.user_id, self.case_id, final_status)
 
         return {
             "success":         len(failed) == 0,
@@ -197,9 +222,9 @@ class WorkspaceDocumentService:
 
     def _save_report_json(self, graph_summary: dict, file_results: list) -> None:
         """Persist a report.json in the workspace output directory."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         report = {
-            "generated_at":    datetime.now(tz=timezone.utc).isoformat(),
+            "generated_at":    datetime.now(tz=UTC).isoformat(),
             "user_id":         self.ws.user_id,
             "case_id":         self.ws.case_id,
             "knowledge_graph": graph_summary,

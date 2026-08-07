@@ -24,9 +24,6 @@ images : List[dict]
 
 from __future__ import annotations
 
-import os
-from typing import Dict, List, Tuple
-
 from openai import OpenAI
 
 from ..config import settings
@@ -45,7 +42,8 @@ class AudioChunking:
         self.working_dir = working_dir
 
         self.client = OpenAI(
-            api_key=settings.LLM_API_KEY
+            api_key=settings.OPENAI_API_KEY,
+            # No base_url override — Whisper must hit api.openai.com directly.
         )
 
     # ---------------------------------------------------------
@@ -54,7 +52,7 @@ class AudioChunking:
 
     async def process(
         self
-    ) -> Tuple[List[str], List[Dict]]:
+    ) -> tuple[list[str], list[dict]]:
 
         logger.info("🎤 Processing Audio File...")
 
@@ -102,7 +100,7 @@ class AudioChunking:
         self,
         transcript: str,
         chunk_size: int = 1200
-    ) -> List[str]:
+    ) -> list[str]:
 
         transcript = transcript.strip()
 

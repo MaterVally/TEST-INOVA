@@ -9,13 +9,15 @@ The original graph.py is NOT modified.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import hashlib
+
 import networkx as nx
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.auth.dependencies import get_current_user
 from backend.auth.middleware.jwt_middleware import AuthContext
-from backend.auth.workspace import UserWorkspace
 from backend.auth.services.case_service import get_case as _verify_case_ownership
+from backend.auth.workspace import UserWorkspace
 
 router = APIRouter(
     prefix="/graph",
@@ -38,7 +40,7 @@ def _load_graph(ws: UserWorkspace) -> nx.Graph:
             except Exception as exc:
                 raise HTTPException(
                     status_code=500, detail=f"Could not read graph: {exc}"
-                )
+                ) from exc
     raise HTTPException(
         status_code=404,
         detail="Knowledge graph not found for this case. Upload and process documents first.",
@@ -109,3 +111,112 @@ async def relationships(
         }
         for source, target, edge in list(graph.edges(data=True))[:limit]
     ]
+
+
+@router.get("/network")
+async def network(
+    case_id: str,
+    node_limit: int = 500,
+    auth: AuthContext = Depends(get_current_user),
+):
+    """Return the full graph network payload for the interactive explorer.
+
+    Combines nodes + edges into one response that the KnowledgeGraphPage
+    expects:  { nodes: [...], edges: [...] }
+
+    Node shape:
+        { id, label, type, description }
+
+    Edge shape:
+        { id, source, target, weight, description }
+
+    node_limit caps the response for large graphs (default 500 nodes).
+    Edges are filtered to only reference included node IDs.
+    """
+    await _verify_case_ownership(case_id=case_id, user_id=auth.user_id)
+    ws    = UserWorkspace(user_id=auth.user_id, case_id=case_id)
+    graph = _load_graph(ws)
+
+    # ── Nodes ─────────────────────────────────────────────────────────
+    raw_nodes = list(graph.nodes(data=True))[:node_limit]
+    included_ids: set[str] = set()
+    nodes_payload = []
+
+    for node_name, node_data in raw_nodes:
+        # Strip stray quotes that NetworkX sometimes preserves from GraphML
+        clean_name  = node_name.strip('"')
+        entity_type = node_data.get("entity_type", "UNKNOWN").strip('"')
+        description = node_data.get("description", "").strip('"')
+
+        # Use a stable short ID derived from the node name so ReactFlow
+        # can track nodes across refreshes without index drift.
+        stable_id = hashlib.md5(clean_name.encode()).hexdigest()[:12]
+
+        included_ids.add(node_name)
+        nodes_payload.append({
+            "id":          stable_id,
+            "label":       clean_name,
+            "type":        entity_type,
+            "description": description,
+            # Keep original name for edge source/target lookup below
+            "_raw_name":   node_name,
+        })
+
+    # Build lookup: raw node name → stable ReactFlow id
+    name_to_id: dict[str, str] = {
+        n["_raw_name"]: n["id"] for n in nodes_payload
+    }
+
+    # Remove internal helper key before sending to client
+    for n in nodes_payload:
+        del n["_raw_name"]
+
+    # ── Edges ──────────────────────────────────────────────────────────
+    edges_payload = []
+    seen_edges: set[tuple] = set()
+
+    for _idx, (source, target, edge_data) in enumerate(graph.edges(data=True)):
+        # Only include edges where both endpoints are in the node set
+        if source not in included_ids or target not in included_ids:
+            continue
+
+        # Deduplicate undirected duplicate edges
+        dedup_key = tuple(sorted([source, target]))
+        if dedup_key in seen_edges:
+            continue
+        seen_edges.add(dedup_key)
+
+        src_id = name_to_id.get(source)
+        tgt_id = name_to_id.get(target)
+        if not src_id or not tgt_id:
+            continue
+
+        description = edge_data.get("description", "").strip('"')
+        weight      = edge_data.get("weight", 1)
+        try:
+            weight = float(weight)
+        except (TypeError, ValueError):
+            weight = 1.0
+
+        # Stable edge ID: hash of sorted endpoint names
+        edge_id = hashlib.md5(f"{source}|{target}".encode()).hexdigest()[:12]
+
+        edges_payload.append({
+            "id":          edge_id,
+            "source":      src_id,
+            "target":      tgt_id,
+            "weight":      weight,
+            "description": description,
+        })
+
+    return {
+        "case_id": case_id,
+        "nodes":   nodes_payload,
+        "edges":   edges_payload,
+        "meta": {
+            "total_nodes":   graph.number_of_nodes(),
+            "total_edges":   graph.number_of_edges(),
+            "returned_nodes": len(nodes_payload),
+            "returned_edges": len(edges_payload),
+        },
+    }

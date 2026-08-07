@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 
@@ -237,9 +237,9 @@ async def login(email: str, password: str) -> dict:
         locked_until_str = user_row["locked_until"]
         try:
             locked_until = datetime.fromisoformat(
-                locked_until_str.replace("Z", "+00:00")
+                locked_until_str
             )
-            if locked_until > datetime.now(tz=timezone.utc):
+            if locked_until > datetime.now(tz=UTC):
                 raise HTTPException(
                     status_code=429,
                     detail={
@@ -399,10 +399,8 @@ async def refresh(refresh_token: str) -> dict:
     if created_at is not None:
         try:
             if isinstance(created_at, str):
-                created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-            session_age = datetime.now(tz=timezone.utc) - created_at.replace(
-                tzinfo=timezone.utc if created_at.tzinfo is None else created_at.tzinfo
-            )
+                created_at = datetime.fromisoformat(created_at)
+            session_age = datetime.now(tz=UTC) - created_at
             if session_age > timedelta(days=_SESSION_MAX_DAYS):
                 raise HTTPException(
                     status_code=401,
@@ -567,9 +565,13 @@ async def _increment_failed_attempts(supabase, email: str) -> None:
         update_payload: dict = {"failed_login_attempts": new_count}
 
         if new_count >= _MAX_FAILED_ATTEMPTS:
-            locked_until = datetime.now(tz=timezone.utc) + timedelta(minutes=_LOCKOUT_MINUTES)
+            locked_until = datetime.now(tz=UTC) + timedelta(minutes=_LOCKOUT_MINUTES)
             update_payload["locked_until"] = locked_until.isoformat()
-            logger.info("Account locked for user_id=%s after %d failed attempts", user_id, new_count)
+            logger.info(
+                "Account locked for user_id=%s after %d failed attempts",
+                user_id,
+                new_count,
+            )
 
         await (
             supabase.from_("users")

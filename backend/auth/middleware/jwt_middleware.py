@@ -118,11 +118,11 @@ async def get_current_user(
     # ── 2. Fetch JWKS (with caching) ──────────────────────────────────────
     try:
         jwks = await _get_jwks()
-    except Exception:
+    except Exception as exc:
         raise HTTPException(
             status_code=503,
             detail={"error": "auth_service_unavailable"},
-        )
+        ) from exc
 
     # ── 3. Decode & verify the JWT ────────────────────────────────────────
     # Supabase may sign with HS256 (JWT secret) or ES256/RS256 (JWKS).
@@ -158,7 +158,7 @@ async def get_current_user(
             raise HTTPException(
                 status_code=401,
                 detail={"error": "token_expired", "message": "Token has expired"},
-            )
+            ) from None
         except JWTError as exc:
             logger.warning("JWKS decode failed: %s", exc)
             last_error = exc
@@ -229,6 +229,6 @@ async def get_current_user(
             raise HTTPException(
                 status_code=503,
                 detail={"error": "auth_service_unavailable"},
-            )
+            ) from exc
 
     return AuthContext(user_id=user_id, role=role, workspace_id=workspace_id)

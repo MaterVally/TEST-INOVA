@@ -172,7 +172,7 @@ export default function UploadPage() {
       try {
         const formData = new FormData()
         formData.append('file', targetFile.file)
-        const resp = await fetch('/api/upload/', {
+        const resp = await fetch('http://localhost:8000/api/upload/', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token ?? ''}`,
@@ -185,8 +185,15 @@ export default function UploadPage() {
           uploadSuccess = true
           try {
             const resJson = await resp.json()
-            if (resJson.nodes) nodeCount = resJson.nodes
-            if (resJson.edges) edgeCount = resJson.edges
+            // Persist the case_id so KnowledgeGraphPage and AIAssistantPage
+            // can pick it up without any extra navigation step.
+            if (resJson.case_id) {
+              localStorage.setItem('innova_active_case_id', resJson.case_id)
+            }
+            // Pull real graph stats if the backend returned them
+            const kg = resJson.knowledge_graph ?? {}
+            if (kg.nodes) nodeCount = kg.nodes
+            if (kg.edges) edgeCount = kg.edges
           } catch {
             // Keep default counts if JSON payload lacks stats
           }

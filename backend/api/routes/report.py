@@ -10,11 +10,12 @@ Future:
 - HTML Report
 """
 
+from datetime import UTC, datetime
+from pathlib import Path
+
+import networkx as nx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import networkx as nx
-from pathlib import Path
-from datetime import datetime
 
 from backend.config import settings
 from backend.services.query_service import QueryService
@@ -71,7 +72,7 @@ async def generate_report(request: ReportRequest):
 
     report = {
 
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
 
         "knowledge_graph": {
 

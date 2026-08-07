@@ -14,7 +14,6 @@ All processors expose the same interface:
 
 Everything downstream (TextChunking → Graph → Fusion → Output) is unchanged.
 """
-import asyncio
 import logging
 import os
 import shutil
@@ -22,17 +21,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import settings as parameter
-from .ingestion.pdf_preprocessing import PdfChunking, TextChunking
+from .graph.fusion import fusion
+from .graph.img2graph import img2graph
+from .graph.text2graph import TextEntityExtractor
+from .ingestion.audio_preprocessing import AudioChunking
 from .ingestion.docx_preprocessing import DocxChunking
 from .ingestion.excel_preprocessing import ExcelChunking
-from .ingestion.audio_preprocessing import AudioChunking
 from .ingestion.image_preprocessing import ImageChunking
-from .graph.text2graph import TextEntityExtractor
-from .graph.img2graph import img2graph
-from .graph.fusion import fusion
-from .storage.graph_storage import NetworkXStorage
-from .storage.kv_storage import JsonKVStorage
-from .utils.base import get_latest_graphml_file, logger, write_json, load_json
+from .ingestion.pdf_preprocessing import PdfChunking, TextChunking
+from .utils.base import get_latest_graphml_file, load_json, logger
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -111,7 +108,7 @@ class MMKGBuilder:
     # Public entry point
     # ------------------------------------------------------------------
 
-    async def index(self, file_path: str = None):
+    async def index(self, file_path: str | None = None):
         file_path = file_path or self.file_path
         logger.info(f"📂 开始处理: {file_path}")
 
@@ -169,7 +166,7 @@ class MMKGBuilder:
 
         # Collect source images into images_dir
         image_paths = []
-        for img_name, img_info in image_data.items():
+        for img_info in image_data.values():
             img_path = img_info.get("image_path", "")
             if os.path.exists(img_path):
                 image_paths.append(img_path)
@@ -185,7 +182,7 @@ class MMKGBuilder:
         if not img_ids:
             return
 
-        _, existing_graph = get_latest_graphml_file(self.working_dir)
+        _existing_graph = get_latest_graphml_file(self.working_dir)
         merged_exists = any(
             f.startswith("graph_merged_") for f in os.listdir(self.working_dir)
         )
@@ -198,7 +195,7 @@ class MMKGBuilder:
 
     def _step_save_output(self):
         logger.info("💾 步骤 5a/5 — 保存最终图谱")
-        namespace, src_path = get_latest_graphml_file(self.working_dir)
+        _namespace, src_path = get_latest_graphml_file(self.working_dir)
         if not os.path.exists(src_path):
             logger.warning(f"⚠️  未找到图谱文件: {src_path}")
             return

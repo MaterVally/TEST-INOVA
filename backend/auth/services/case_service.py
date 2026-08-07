@@ -94,6 +94,7 @@ async def create_case(user_id: str, title: str, description: str | None) -> dict
         "user_id":     user_id,           # always from JWT
         "title":       title,
         "description": description or "",
+        "status":      "processing",
     }
 
     try:
@@ -122,7 +123,7 @@ async def list_cases(user_id: str) -> list[dict]:
         result = (
             await supabase
             .from_("cases")
-            .select("id, title, description, created_at, updated_at")
+            .select("id, title, description, status, created_at, updated_at")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
             .execute()

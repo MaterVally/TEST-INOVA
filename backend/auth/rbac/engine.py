@@ -9,7 +9,7 @@ Requirements: 5.2, 5.4
 """
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Depends, HTTPException
 
@@ -56,14 +56,19 @@ def require_permission(permission: Permission) -> Callable:
 
     Usage::
 
-        @router.get("/sensitive", dependencies=[Depends(require_permission(Permission.VIEW_AUDIT_LOG))])
+        @router.get(
+            "/sensitive",
+            dependencies=[Depends(require_permission(Permission.VIEW_AUDIT_LOG))],
+        )
         async def sensitive_endpoint(auth: AuthContext = Depends(get_current_user)):
             ...
 
     Or as an injected dependency that also returns the ``AuthContext``::
 
         @router.get("/upload")
-        async def upload(auth: AuthContext = Depends(require_permission(Permission.UPLOAD_DOCUMENT))):
+        async def upload(
+            auth: AuthContext = Depends(require_permission(Permission.UPLOAD_DOCUMENT))
+        ):
             ...
     """
 

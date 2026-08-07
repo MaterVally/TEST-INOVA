@@ -6,30 +6,29 @@ Hackathon Prototype
 """
 
 import logging
+import os
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import os
 
 # Load environment variables
 load_dotenv()
 
-from backend.config import ALLOWED_ORIGINS, SUPABASE_JWT_SECRET
-from backend.auth.middleware.jwt_middleware import get_current_user
-
 from backend.api.routes.cases import router as cases_router
-# Workspace-aware replacements (user-scoped paths — no global data folders)
-from backend.api.routes.workspace_upload import router as ws_upload_router
-from backend.api.routes.workspace_query import router as ws_query_router
+from backend.api.routes.storage import router as storage_router
 from backend.api.routes.workspace_graph import router as ws_graph_router
+from backend.api.routes.workspace_query import router as ws_query_router
 from backend.api.routes.workspace_report import router as ws_report_router
 
+# Workspace-aware replacements (user-scoped paths — no global data folders)
+from backend.api.routes.workspace_upload import router as ws_upload_router
+from backend.auth.middleware.jwt_middleware import get_current_user
+from backend.auth.routes.audit import router as audit_router
 from backend.auth.routes.auth import router as auth_router
 from backend.auth.routes.profile import router as profile_router
 from backend.auth.routes.workspace import router as workspace_router
-from backend.auth.routes.audit import router as audit_router
-from backend.api.routes.storage import router as storage_router
+from backend.config import ALLOWED_ORIGINS, SUPABASE_JWT_SECRET
 
 logger = logging.getLogger(__name__)
 

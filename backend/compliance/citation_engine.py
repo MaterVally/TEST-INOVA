@@ -20,17 +20,16 @@ Will support:
 - Audio timestamps
 """
 
-from typing import Dict, List, Tuple
 
 
 class CitationEngine:
 
     def build_citations(
         self,
-        retrieval_context: Dict,
+        retrieval_context: dict,
         graph,
-        text_chunks: Dict,
-    ) -> List[Dict]:
+        text_chunks: dict,
+    ) -> list[dict]:
         """
         Build citations from pre-computed retrieval context.
 
@@ -49,7 +48,7 @@ class CitationEngine:
         List[dict]  — deduplicated by source_chunk
         """
 
-        similar_nodes: List[Tuple[str, float]] = retrieval_context.get(
+        similar_nodes: list[tuple[str, float]] = retrieval_context.get(
             "similar_nodes", []
         )
 
@@ -65,8 +64,8 @@ class CitationEngine:
             description = node.get("description", "")
             entity_type = node.get("entity_type", "UNKNOWN").replace('"', "")
 
-            for sid in node.get("source_id", "").split("<SEP>"):
-                sid = sid.strip()
+            for raw_sid in node.get("source_id", "").split("<SEP>"):
+                sid = raw_sid.strip()
                 if not sid:
                     continue
                 chunk = text_chunks.get(sid)
@@ -83,7 +82,7 @@ class CitationEngine:
 
         # Deduplicate by source_chunk — last writer wins (highest-scored
         # entity for that chunk, since similar_nodes is score-descending)
-        unique: Dict[str, dict] = {}
+        unique: dict[str, dict] = {}
         for citation in citations:
             unique[citation["source_chunk"]] = citation
 
