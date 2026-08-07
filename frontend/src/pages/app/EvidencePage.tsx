@@ -21,7 +21,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { getAccessToken } from '../../auth/tokenStore'
 
-const API = 'http://localhost:8000/api'
+const API = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '') + '/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

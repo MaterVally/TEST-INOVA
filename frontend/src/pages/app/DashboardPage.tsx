@@ -13,7 +13,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { getAccessToken } from '../../auth/tokenStore'
 
-const API = 'http://localhost:8000/api'
+const API = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '') + '/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -26,9 +26,9 @@ interface ApiCase {
 }
 
 interface GraphSummary {
-  available: boolean
-  nodes?: number
-  edges?: number
+  available?: boolean
+  nodes: number
+  edges: number
   entity_types?: Record<string, number>
 }
 
@@ -81,7 +81,12 @@ export default function DashboardPage() {
     setLG(true)
     try {
       const r = await fetch(`${API}/graph/summary?case_id=${encodeURIComponent(caseId)}`, { headers: authHdr() })
-      if (r.ok) setGraph(await r.json())
+      if (r.ok) {
+        const summary = await r.json() as Omit<GraphSummary, 'available'>
+        setGraph({ ...summary, available: true })
+      } else {
+        setGraph({ available: false, nodes: 0, edges: 0 })
+      }
     } catch { /* silent */ } finally { setLG(false) }
   }
 

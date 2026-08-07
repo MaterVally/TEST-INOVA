@@ -15,22 +15,20 @@ from fastapi.middleware.cors import CORSMiddleware
 # Load environment variables
 load_dotenv()
 
-from backend.config import ALLOWED_ORIGINS, SUPABASE_JWT_SECRET
-from backend.auth.middleware.jwt_middleware import get_current_user, _get_jwks
-
 from backend.api.routes.cases import router as cases_router
+from backend.api.routes.storage import router as storage_router
+from backend.api.routes.workspace_graph import router as ws_graph_router
+from backend.api.routes.workspace_query import router as ws_query_router
+from backend.api.routes.workspace_report import router as ws_report_router
+
 # Workspace-aware replacements (user-scoped paths — no global data folders)
 from backend.api.routes.workspace_upload import router as ws_upload_router
-from backend.api.routes.workspace_query import router as ws_query_router
-from backend.api.routes.workspace_graph import router as ws_graph_router
-from backend.api.routes.workspace_report import router as ws_report_router
-from backend.api.routes.graph import router as global_graph_router
-
+from backend.auth.middleware.jwt_middleware import _get_jwks, get_current_user
+from backend.auth.routes.audit import router as audit_router
 from backend.auth.routes.auth import router as auth_router
 from backend.auth.routes.profile import router as profile_router
 from backend.auth.routes.workspace import router as workspace_router
-from backend.auth.routes.audit import router as audit_router
-from backend.api.routes.storage import router as storage_router
+from backend.config import ALLOWED_ORIGINS, OPENAI_API_KEY, SUPABASE_JWT_SECRET
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +45,7 @@ if not SUPABASE_JWT_SECRET:
     raise SystemExit(1)
 
 _allowed_origins_list = [o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()]
+_allowed_origin_regex = r"^https?://(?:localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:[0-9]+)?$"
 
 # ------------------------------
 # App
@@ -77,6 +76,7 @@ Features:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins_list,
+    allow_origin_regex=_allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -89,9 +89,19 @@ app.add_middleware(
 app.include_router(ws_upload_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_query_router,  prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_graph_router,  prefix="/api", dependencies=[Depends(get_current_user)])
-app.include_router(ws_report_router, prefix="/api", dependencies=[Depends(get_current_user)])
-app.include_router(cases_router,     prefix="/api", dependencies=[Depends(get_current_user)])
-app.include_router(global_graph_router, prefix="/api/graph-global", dependencies=[Depends(get_current_user)])
+app.include_router(
+    ws_report_router,
+    prefix="/api",
+    dependencies=[Depends(get_current_user)],
+)
+app.include_router(
+    cases_router,
+    prefix="/api",
+    dependencies=[Depends(get_current_user)],
+)
+# NOTE: global_graph_router (graph.py) is intentionally not registered here.
+# All graph endpoints are served by workspace_graph.py at /api/graph, which
+# is workspace-scoped and authenticated. graph.py is kept only for CLI use.
 
 # ------------------------------
 # Routers — auth & workspace
@@ -134,7 +144,7 @@ async def root():
 async def health():
     return {
         "status": "healthy",
-        "openai_key_loaded": bool(os.getenv("LLM_API_KEY")),
+        "openai_key_loaded": bool(OPENAI_API_KEY),
         "graph_engine": "MMGraphRAG",
         "prototype": True
     }

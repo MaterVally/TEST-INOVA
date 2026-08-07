@@ -151,14 +151,27 @@ export default function KnowledgeGraphPage() {
     setError(null)
 
     try {
-      const token = getAccessToken()
-      const url   = `http://localhost:8000/api/graph/network?case_id=${encodeURIComponent(caseId)}`
+      const token   = getAccessToken()
+      const apiBase = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
+      const headers = { Authorization: `Bearer ${token ?? ''}` }
 
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token ?? ''}`,
-        },
-      })
+      // Check case status before hitting the graph endpoint
+      const caseResp = await fetch(`${apiBase}/api/cases/${caseId}`, { headers })
+      if (caseResp.ok) {
+        const caseData = await caseResp.json() as { status?: string }
+        if (caseData.status === 'processing') {
+          setError('Document is still being processed. Check back in a moment.')
+          setLoading(false)
+          return
+        }
+        if (caseData.status === 'failed') {
+          setError('Document processing failed. Re-upload the document to rebuild the graph.')
+          setLoading(false)
+          return
+        }
+      }
+
+      const response = await fetch(`${apiBase}/api/graph/network?case_id=${encodeURIComponent(caseId)}`, { headers })
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))

@@ -31,7 +31,7 @@ MMGraphRAG is a **multi-modal knowledge graph RAG framework** that builds a fuse
 4. Fusing text and image KGs via spectral clustering + LLM alignment (fusion)
 5. Answering queries via a local GraphRAG pipeline with multimodal augmentation
 
-The codebase is a **research prototype** undergoing active refactoring. It uses Alibaba DashScope (Qwen) APIs by default but is compatible with any OpenAI-compatible endpoint.
+The codebase is a **research prototype** undergoing active refactoring. It previously defaulted to Alibaba DashScope (Qwen) APIs but now uses OpenAI-compatible endpoints by default (configurable via environment variables).
 
 **Language**: Python 3.10+  
 **No** `pyproject.toml`, `setup.py`, `setup.cfg`, `requirements.txt`, `Pipfile`, `environment.yml`, or `uv.lock` was found — dependency management is entirely manual.
@@ -298,7 +298,7 @@ End-to-end pipeline demo:
 | `docbench_eval/QA.py` | Runs 5 QA methods on 229 DocBench documents |
 | `docbench_eval/evaluate.py` | LLM-based answer evaluation |
 | `docbench_eval/eval_llm.py` | LLM client for evaluation |
-| `docbench_eval/naive_rag.py` | Naive RAG baseline (SentenceTransformer + Qwen) |
+| `docbench_eval/naive_rag.py` | Naive RAG baseline (SentenceTransformer + OpenAI-compatible LLM) |
 | `docbench_eval/result.py` | Accuracy computation by type/domain |
 | `docbench_eval/check.py` | Detects failed MinerU outputs, reruns them |
 | `mmlongbench_eval/run.py` | Runs 5 QA methods on MMLongBench |

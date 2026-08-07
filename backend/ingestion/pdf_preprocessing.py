@@ -51,10 +51,12 @@ class TextChunking:
     chunk_overlap_token_size:             int               = 100
     key_string_value_json_storage_cls:    type[BaseKVStorage] = JsonKVStorage
     tiktoken_model_name:                  str               = "gpt-4o"
+    working_dir:                          str               = None
 
     def __post_init__(self):
-        self.full_docs   = self.key_string_value_json_storage_cls(namespace="full_docs")
-        self.text_chunks = self.key_string_value_json_storage_cls(namespace="text_chunks")
+        _dir = self.working_dir or parameter.WORKING_DIR
+        self.full_docs   = self.key_string_value_json_storage_cls(namespace="full_docs",   storage_dir=_dir)
+        self.text_chunks = self.key_string_value_json_storage_cls(namespace="text_chunks", storage_dir=_dir)
 
     async def text_chunking(self, string_or_strings):
         if isinstance(string_or_strings, str):

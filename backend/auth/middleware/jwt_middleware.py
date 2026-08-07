@@ -182,17 +182,9 @@ async def get_current_user(
     # The app-specific role (Admin / Analyst / Viewer) lives in app_metadata.
     app_metadata: dict = payload.get("app_metadata") or {}
     role: str | None = app_metadata.get("role") or payload.get("role")
-    if role is None:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "missing_role",
-                "message": "Token does not contain a role claim",
-            },
-        )
-    if role not in _VALID_ROLES:
-        # Fall back to a default role of Viewer for users who haven't been
-        # assigned a custom role yet (e.g. freshly signed-up users).
+    # Fresh Supabase users have role="authenticated" in the top-level claim.
+    # Default them to Viewer so they can use the app immediately after signup.
+    if role is None or role not in _VALID_ROLES:
         role = "Viewer"
 
     # ── 6. Resolve workspace from header ─────────────────────────────────

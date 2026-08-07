@@ -45,8 +45,9 @@ async def extract_entities(
     cache_storage: BaseKVStorage,
     chunks: dict[str, TextChunkSchema],
     knwoledge_graph_inst: BaseGraphStorage,
+    working_dir: str = None,
 ) -> BaseGraphStorage | None:
-    output_path = os.path.join(parameter.WORKING_DIR, "kv_store_chunk_knowledge_graph.json")
+    output_path = os.path.join(working_dir or parameter.WORKING_DIR, "kv_store_chunk_knowledge_graph.json")
 
     llm_func = limit_async_func_call(16)(
         partial(model_if_cache, hashing_kv=cache_storage)
@@ -150,19 +151,25 @@ class TextEntityExtractor:
     extraction_func:   callable              = extract_entities
     kv_storage_cls:    type[BaseKVStorage]   = JsonKVStorage
     graph_storage_cls: type[BaseGraphStorage] = NetworkXStorage
+    working_dir:       str                   = None
+    cache_dir:         str                   = None
 
     def __post_init__(self):
         self.llm_cache = self.kv_storage_cls(
             namespace="llm_response_cache",
-            storage_dir=parameter.CACHE_PATH
+            storage_dir=self.cache_dir or parameter.CACHE_PATH
         )
-        self.graph = self.graph_storage_cls(namespace="chunk_entity_relation")
+        self.graph = self.graph_storage_cls(
+            namespace="chunk_entity_relation",
+            storage_dir=self.working_dir or parameter.WORKING_DIR
+        )
 
     async def text_entity_extraction(self, chunks: dict):
         try:
             logger.info("🔍 正在提取实体...")
             result = await self.extraction_func(
                 self.llm_cache, chunks, knwoledge_graph_inst=self.graph,
+                working_dir=self.working_dir,
             )
             if result is None:
                 logger.warning("未找到新实体")

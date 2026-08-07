@@ -1,289 +1,455 @@
-# PolyGraphRAG
+# Enterprise Compliance Intelligence Platform
 
-**A Multi-Modal Knowledge Graph RAG Framework**
+**A Multi-Modal Knowledge Graph RAG Framework for Enterprise Compliance**
 
-From documents to multi-modal knowledge graphs — an all-in-one PolyGraphRAG solution.
+An end-to-end platform that transforms heterogeneous enterprise documents — PDFs, Word documents, Excel spreadsheets, audio recordings, and images — into unified multi-modal knowledge graphs. Powered by GraphRAG retrieval, evidence scoring, citation verification, workspace multi-tenancy, and an interactive React 19 web dashboard.
+
+---
+
+## Table of Contents
+
+- [Key Features](#key-features)
+- [Architecture & Workflow](#architecture--workflow)
+- [Technology Stack](#technology-stack)
+- [Project Structure](#project-structure)
+- [Environment Configuration](#environment-configuration)
+- [Installation & Setup](#installation--setup)
+- [Usage Instructions](#usage-instructions)
+  - [Full-Stack Web Application](#1-running-the-full-stack-web-application)
+  - [CLI Commands](#2-cli-usage)
+  - [Flask Graph Explorer](#3-standalone-visualization-server)
+  - [Docker Container](#4-docker-deployment)
+  - [Evaluation & Benchmarks](#5-evaluation--benchmarks)
+- [REST API Reference](#rest-api-reference)
+- [License](#license)
 
 ---
 
 ## Key Features
 
-- **Text + Image unified modeling** — builds a single knowledge graph from both text and images
-- **YOLO-based image segmentation** — extracts visual entities from figures and charts
-- **Multi-modal entity fusion** — spectral clustering merges text and image graphs
-- **Semantic RAG retrieval** — entity-level similarity search with multi-modal context
-- **Interactive visualization** — built-in web server with force-directed graph explorer
-- **Flexible ingestion** — supports PDF, DOCX, Excel, audio, and image inputs
-- **Dual PDF engine** — MinerU (recommended) or PyMuPDF fallback
-- **LLM response caching** — faster re-runs without redundant API calls
+- **Multi-Modal Document Ingestion**: Supports PDF, DOCX, XLSX, MP3/WAV audio (via OpenAI Whisper), images (PNG/JPG), and plain text.
+- **Dual PDF Extraction Engine**: Layout-aware parsing via MinerU with an automatic fallback to PyMuPDF (`fitz`).
+- **Visual Entity & Scene Graph Processing**: Extracts visual entities and scene graphs from document figures, charts, and diagrams using GPT-4o Vision (with Pillow for image preprocessing).
+- **Spectral Clustering Graph Fusion**: Merges text knowledge graphs and visual scene graphs into a unified Multi-Modal Knowledge Graph (MMKG) using DBSCAN and cosine similarity.
+- **GraphRAG & Explainable AI Retrieval**: Entity-level vector similarity search using `sentence-transformers/all-MiniLM-L6-v2`, local/global graph context retrieval, evidence confidence scoring, citation linking, and automated compliance reporting.
+- **Workspace Multi-Tenancy & RBAC**: Tenant isolation with workspace-scoped data processing, Supabase Auth integration, JWT verification via JWKS, Role-Based Access Control (RBAC), and audit logging.
+- **Modern Web Dashboard**: Built with React 19, TypeScript, Vite, Tailwind CSS, and `@xyflow/react` for interactive force-directed graph exploration, workspace switching, compliance case management, and evidence viewing.
+- **Production-Ready & Containerized**: Dockerized setup (Python 3.12-slim), Render backend configuration (`render.yaml`), and Vercel frontend support.
 
 ---
 
-## About
+## Architecture & Workflow
 
-This project extends nano-graphrag to support multi-modal inputs. The image processing pipeline uses YOLO and a Multi-modal LLM (MLLM) to convert images into scene graphs. A spectral clustering fusion step then merges the text knowledge graph and image knowledge graph into a unified multi-modal knowledge graph (MMKG).
+```
+                        [ Document Ingestion Layer ]
+         PDF / DOCX / XLSX / Audio (Whisper) / Images (PNG/JPG)
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+            Text Processing                 Visual Processing
+       (MinerU / PyMuPDF Chunking)       (GPT-4o Vision + Pillow)
+                    │                               │
+                    ▼                               ▼
+           Text Knowledge Graph            Visual Scene Graph
+                    │                               │
+                    └───────────────┬───────────────┘
+                                    ▼
+                     [ Multi-Modal Graph Fusion ]
+                (Spectral Clustering: DBSCAN + Embeddings)
+                                    │
+                                    ▼
+                      Unified Multi-Modal KG (MMKG)
+                                    │
+           ┌────────────────────────┴────────────────────────┐
+           ▼                                                 ▼
+[ Workspace & Auth Storage ]                       [ GraphRAG Retrieval ]
+  (Supabase Auth + NetworkX)                   (Vector Search + Context RAG)
+           │                                                 │
+           └────────────────────────┬────────────────────────┘
+                                    ▼
+                       [ Interactive Web Dashboard ]
+                      (React 19 + @xyflow/react UI)
+```
 
-PolyGraphRAG handles diverse input modalities — PDF, DOCX, Excel, audio, and images — and unifies them into a single queryable knowledge graph.
+1. **Ingestion**: Documents are parsed by specialized extractors (MinerU/PyMuPDF for PDFs, `python-docx` for Word, `openpyxl` for Excel, OpenAI Whisper for audio).
+2. **Entity & Relation Extraction**: Text LLM extracts structured entities and relations; visual pipelines perform GPT-4o vision scene graph extraction.
+3. **Graph Fusion**: Text and image graph representations are aligned and merged via spectral clustering (DBSCAN over node embedding matrices).
+4. **Retrieval & Evidence**: Queries retrieve top-k vector-matched entities and local graph neighborhoods, feeding an evidence scoring engine and citation tracker to produce explainable compliance responses.
+5. **Security & Workspace Isolation**: All document uploads, knowledge graph builds, queries, and reports are partitioned by workspace ID and guarded by JWT middleware.
 
 ---
 
-## Environment Setup
+## Technology Stack
 
-### Install Dependencies
+### Backend
+- **Framework**: Python 3.11+, FastAPI (ASGI), Uvicorn, Flask (standalone visualization)
+- **AI / LLM / MLLM**: OpenAI API (`gpt-4o` for text, vision, and Whisper audio transcription)
+- **Embeddings**: `sentence-transformers` (`all-MiniLM-L6-v2`), PyTorch, HuggingFace
+- **Image & Vision**: Pillow (`PIL`) for image loading, resizing, and base64 encoding; OpenAI `gpt-4o` Vision for visual entity & scene graph extraction *(Note: YOLOv8 and OpenCV were used in legacy research code under `src/` but have been replaced by direct GPT-4o vision prompting in `backend/`)*
+- **Graph & Math**: NetworkX, Tiktoken, scikit-learn, NumPy
+- **PDF & Document Parsing**: MinerU (`mineru[all]`), PyMuPDF (`pymupdf`), `python-docx`, `openpyxl`
+- **Auth & Database**: Supabase (`supabase`), PyJWT (`python-jose`), `email-validator`
 
-```bash
-pip install -r requirements.txt
-```
+### Frontend
+- **Framework**: React 19, TypeScript, Vite 6
+- **Styling**: Tailwind CSS 4, `@tailwindcss/vite`, PostCSS, Lucide React
+- **Graph Visualization**: `@xyflow/react` (React Flow 12)
+- **State & Animation**: Framer Motion, Class Variance Authority (`cva`), `clsx`, `tailwind-merge`
+- **Authentication**: `@supabase/supabase-js`, custom workspace guards & token store
 
-Or install individually:
-
-```bash
-pip install openai
-pip install sentence-transformers
-pip install networkx
-pip install numpy
-pip install scikit-learn
-pip install Pillow
-pip install tqdm
-pip install tiktoken
-pip install ultralytics
-pip install opencv-python
-pip install flask
-pip install flask-cors
-```
-
-### PDF Parsing
-
-Install at least one of the following:
-
-| Option | Command | Notes |
-|--------|---------|-------|
-| MinerU (recommended) | `pip install -U "mineru[all]"` | Better layout and image extraction |
-| PyMuPDF | `pip install pymupdf` | Lightweight, simpler PDFs |
-
-Set `USE_MINERU = True/False` in `backend/config/settings.py` to switch between them. If MinerU is unavailable, the system falls back to PyMuPDF automatically.
-
-For MinerU setup, download the required model files per the MinerU documentation before use.
-
----
-
-## Configuration
-
-All parameters are in `backend/config/settings.py`.
-
-### Model Configuration
-
-Three model types are required:
-
-**Text LLM** — entity extraction, relation building:
-```python
-API_KEY = "your-api-key"
-API_BASE = "https://your-api-endpoint/v1"
-MODEL_NAME = "qwen3-max"
-```
-
-**Multi-Modal LLM** — image understanding, visual entity extraction:
-```python
-MM_API_KEY = "your-api-key"
-MM_API_BASE = "https://your-api-endpoint/v1"
-MM_MODEL_NAME = "qwen-vl-max"
-```
-
-**Embedding Model** — entity vectorization and semantic retrieval:
-```python
-EMBEDDING_MODEL_DIR = './models/all-MiniLM-L6-v2'
-EMBED_MODEL = SentenceTransformer(EMBEDDING_MODEL_DIR, device="cpu")
-```
-
-The embedding model can be auto-downloaded by name or pointed to a local path.
-
-### Directory Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `INPUT_PDF_PATH` | Input file path | — |
-| `CACHE_PATH` | LLM response cache | `cache` |
-| `WORKING_DIR` | Intermediate files | `working` |
-| `OUTPUT_DIR` | Final graph output | `output` |
-| `MMKG_NAME` | Output graph name | `mmkg_timestamp` |
-
-### Processing Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `USE_MINERU` | Use MinerU for PDF parsing | `True` |
-| `ENTITY_EXTRACT_MAX_GLEANING` | Max entity extraction iterations | `0` |
-| `ENTITY_SUMMARY_MAX_TOKENS` | Max tokens for entity summary | `500` |
-| `SUMMARY_CONTEXT_MAX_TOKENS` | Max tokens for summary context | `10000` |
-
-### RAG Retrieval Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `QueryParam.top_k` | Entities to retrieve | `5` |
-| `QueryParam.response_type` | Response style | `Detailed System-like Response` |
-| `QueryParam.local_max_token_for_local_context` | Max local context tokens | `4000` |
-| `QueryParam.number_of_mmentities` | Multi-modal entities to include | `3` |
-| `QueryParam.local_max_token_for_text_unit` | Max text unit tokens | `4000` |
-| `RETRIEVAL_THRESHOLD` | Similarity threshold | `0.2` |
-
----
-
-## Usage
-
-### Build Knowledge Graph
-
-```bash
-python main.py -i path/to/document.pdf
-```
-
-```bash
-# Specify directories
-python main.py -i document.pdf -w ./working -o ./output
-
-# Use PyMuPDF instead of MinerU
-python main.py -i document.pdf -m pymupdf
-
-# Force rebuild from scratch
-python main.py -i document.pdf -f
-
-# Verbose logging
-python main.py -i document.pdf -v
-```
-
-### Query
-
-```bash
-python main.py -q "Your question"
-
-# With parameters
-python main.py -q "Your question" --top_k 10 --response_type "Concise answer"
-
-# Build and query in one step
-python main.py -i document.pdf -q "Your question"
-```
-
-### Visualization Server
-
-```bash
-python main.py -s
-# Open http://localhost:8080
-```
-
-```bash
-# Custom port and graph file
-python main.py -s --port 8888 --graph path/to/graph.graphml
-```
-
-Features:
-- Force-directed layout
-- Real-time entity search
-- Subgraph highlighting by query
-- Click nodes to view entity details
-- Color-coded entity types
-
-### CLI Reference
-
-| Argument | Short | Description |
-|----------|-------|-------------|
-| `--input` | `-i` | Input file path |
-| `--working` | `-w` | Working directory |
-| `--output` | `-o` | Output directory |
-| `--method` | `-m` | PDF engine: `mineru` or `pymupdf` |
-| `--force` | `-f` | Force rebuild |
-| `--verbose` | `-v` | Verbose logs |
-| `--query` | `-q` | RAG query |
-| `--top_k` | — | Entities to retrieve |
-| `--response_type` | — | Response style |
-| `--server` | `-s` | Start visualization server |
-| `--port` | — | Server port (default: 8080) |
-| `--graph` | — | Graph file path |
+### Infrastructure & Tools
+- **Containerization**: Docker (`Python 3.12-slim`)
+- **Deployment Manifests**: Render (`render.yaml`), Vercel (`frontend/vercel.json`)
+- **Code Quality**: Ruff (`pyproject.toml`), Vitest, ESLint
 
 ---
 
 ## Project Structure
 
 ```
-PolyGraphRAG/
-├── backend/                        # Active codebase
-│   ├── api/
-│   │   ├── main.py                 # FastAPI app entry point
-│   │   └── routes/
-│   │       ├── upload.py
-│   │       ├── query.py
-│   │       ├── graph.py
-│   │       └── report.py
-│   ├── compliance/
-│   │   ├── citation_engine.py
-│   │   └── evidence_engine.py
-│   ├── config/
-│   │   └── settings.py             # All configuration parameters
-│   ├── core/
-│   │   └── prompt.py               # LLM prompt templates
-│   ├── graph/
-│   │   ├── text2graph.py           # Text entity/relation extraction
-│   │   ├── img2graph.py            # Image scene graph extraction
-│   │   ├── fusion.py               # Multi-modal graph fusion
-│   │   └── utils.py
-│   ├── ingestion/
-│   │   ├── pdf_preprocessing.py
-│   │   ├── audio_preprocessing.py
-│   │   ├── docx_preprocessing.py
-│   │   ├── excel_preprocessing.py
-│   │   ├── image_preprocessing.py
-│   │   └── image_utils.py
-│   ├── llm/
-│   │   └── client.py               # LLM / embedding API client
-│   ├── retrieval/
-│   │   └── query.py                # RAG retrieval logic
-│   ├── services/
-│   │   ├── document_service.py
-│   │   ├── multidocument_service.py
-│   │   └── query_service.py
-│   ├── storage/
-│   │   ├── graph_storage.py
-│   │   └── kv_storage.py
-│   ├── utils/
-│   │   └── base.py
-│   ├── visualization/
-│   │   ├── server.py               # Flask visualization server
-│   │   └── graph_explorer.html     # Interactive graph UI
-│   └── builder.py                  # Pipeline orchestrator
+InnovaHack/
+├── backend/                        # Backend REST API & Knowledge Graph Engine
+│   ├── api/                        # REST API Routing Layer
+│   │   ├── routes/                 # FastAPI Route Modules
+│   │   │   ├── cases.py            # Compliance case & workflow endpoints
+│   │   │   ├── graph.py            # Standalone/CLI graph endpoint
+│   │   │   ├── query.py            # Legacy query endpoint
+│   │   │   ├── report.py           # Legacy report endpoint
+│   │   │   ├── storage.py          # Graph/KV storage status endpoints
+│   │   │   ├── upload.py           # Legacy upload endpoint
+│   │   │   ├── workspace_graph.py  # Workspace-scoped graph endpoints
+│   │   │   ├── workspace_query.py  # Workspace-scoped RAG query endpoints
+│   │   │   ├── workspace_report.py # Workspace-scoped compliance reporting
+│   │   │   └── workspace_upload.py # Workspace-scoped multi-format document ingestion
+│   │   └── main.py                 # FastAPI application entry point & CORS configuration
+│   ├── auth/                       # Authentication & Multi-Tenancy Module
+│   │   ├── middleware/             # JWT authentication middleware
+│   │   ├── migrations/             # Database migration scripts
+│   │   ├── models/                 # User & workspace Pydantic models
+│   │   ├── rbac/                   # Role-Based Access Control logic
+│   │   ├── routes/                 # Auth, profile, workspace, and audit log routes
+│   │   ├── services/               # Supabase auth & workspace services
+│   │   ├── dependencies.py         # FastAPI auth dependencies
+│   │   ├── supabase_client.py      # Supabase client initialization
+│   │   └── workspace.py            # Workspace context helper utilities
+│   ├── compliance/                 # Compliance Audit & Evidence Engine
+│   │   ├── citation_engine.py      # Source document citation generator
+│   │   └── evidence_engine.py      # Confidence scoring & evidence verification
+│   ├── config/                     # Configuration Management
+│   │   └── settings.py             # Runtime settings, env variables, & lazy embedding loader
+│   ├── core/                       # Core Prompts & Constants
+│   │   └── prompt.py               # Prompt templates for LLM entity extraction & RAG
+│   ├── graph/                      # Multi-Modal Knowledge Graph Construction Pipeline
+│   │   ├── fusion.py               # Text-Visual graph fusion via spectral clustering
+│   │   ├── img2graph.py            # Image vision & scene graph builder
+│   │   ├── text2graph.py           # Text entity & relation extraction pipeline
+│   │   └── utils.py                # Graph matrix transformations & spectral algorithms
+│   ├── ingestion/                  # Multi-Modal Document Processors
+│   │   ├── audio_preprocessing.py  # Audio transcription via OpenAI Whisper
+│   │   ├── docx_preprocessing.py   # Microsoft Word document extractor
+│   │   ├── excel_preprocessing.py  # Microsoft Excel sheet extractor
+│   │   ├── image_preprocessing.py  # Standalone image metadata & vision loader
+│   │   ├── image_utils.py          # Image compression & formatting utilities
+│   │   └── pdf_preprocessing.py    # MinerU / PyMuPDF dual PDF parsing engine
+│   ├── llm/                        # LLM Interface Layer
+│   │   └── client.py               # OpenAI client wrapper & response caching system
+│   ├── retrieval/                  # GraphRAG Retrieval Engine
+│   │   └── query.py                # Semantic graph search & answer synthesis engine
+│   ├── services/                   # Business Logic & Orchestration Services
+│   │   ├── document_service.py     # Document management service
+│   │   ├── multidocument_service.py # Multi-document graph fusion & batch indexing
+│   │   ├── query_service.py        # Compliance query orchestration
+│   │   └── workspace_document_service.py # Workspace document storage service
+│   ├── storage/                    # Persistence Layer
+│   │   ├── graph_storage.py        # NetworkX GraphML storage implementation
+│   │   └── kv_storage.py           # Key-Value JSON cache storage implementation
+│   ├── utils/                      # Shared Helper Utilities
+│   │   └── base.py                 # Token counting, hashing, logging utilities
+│   ├── visualization/              # Legacy / Standalone Web Explorer
+│   │   ├── graph_explorer.html     # D3 force-directed visualizer template
+│   │   └── server.py               # Flask visualization server runner
+│   └── builder.py                  # MMKGBuilder main pipeline orchestrator
 │
-├── examples/
-│   ├── example_input/
-│   │   ├── 2020.acl-main.45.pdf    # Sample academic paper
-│   │   └── 13_qa.jsonl             # 13 Q&A pairs with ground truth
-│   ├── example_working/            # Intermediate results (auto-generated)
-│   ├── example_output/
-│   │   ├── example_mmkg.graphml    # Final multi-modal knowledge graph
-│   │   ├── example_mmkg_emb.npy    # Node embeddings
-│   │   └── retrieval_log.md        # RAG query logs
-│   ├── paper/
-│   │   ├── framework.png
-│   │   └── mmgraphrag.pdf
-│   └── docqa_example.py            # End-to-end Q&A evaluation script
+├── frontend/                       # React 19 Web Dashboard Application
+│   ├── src/
+│   │   ├── api/                    # Axios/Fetch backend API client wrappers
+│   │   ├── auth/                   # Supabase authentication & token store
+│   │   ├── components/             # UI components & @xyflow/react graph canvas
+│   │   ├── hooks/                  # Custom hooks (e.g. useWorkspaceGuard)
+│   │   ├── pages/                  # Application views (Dashboard, Graph, Query, Cases, Reports, Upload)
+│   │   ├── App.tsx                 # Main router & layout shell
+│   │   └── main.tsx                # Frontend entry point
+│   ├── package.json                # Frontend dependencies & scripts
+│   ├── tailwind.config.js          # Tailwind CSS styling configuration
+│   └── vite.config.ts              # Vite dev server & API proxy config
 │
-├── models/                         # Local embedding model weights
-├── frontend/                       # Frontend (placeholder)
-├── scripts/
-│   └── _verify_imports.py
-├── src/                            # Legacy research code (superseded by backend/)
-├── main.py                         # CLI entry point
-├── requirements.txt
-└── README.md
+├── data/                           # Runtime Working Data Directories (gitignored outputs)
+│   ├── cache/                      # LLM response cache store
+│   ├── input/                      # Default document input storage
+│   ├── output/                     # GraphML & embedding outputs
+│   └── working/                    # Intermediate build artifacts
+│
+├── eval/                           # Benchmark & Evaluation Suite
+│   ├── evaluate.py                 # Evaluation execution script
+│   └── gold_sample.json            # Reference benchmarks & ground-truth evaluation sets
+│
+├── examples/                       # Examples & Framework Documentation
+│   ├── docqa_example.py            # End-to-end evaluation runner script
+│   ├── example_input/              # Sample academic PDF & QA dataset
+│   └── paper/                      # Architecture diagrams & framework paper
+│
+├── models/                         # Local embedding model directory (`all-MiniLM-L6-v2`)
+├── scripts/                        # Utility & import verification scripts
+├── tests/                          # Automated backend test suite
+│
+├── .env.example                    # Backend environment variable template
+├── Dockerfile                      # Production Docker container build file
+├── LICENSE                         # License terms
+├── main.py                         # Root CLI entry point
+├── pyproject.toml                  # Python package & Ruff linter configuration
+├── render.yaml                     # Render.com web service deployment manifest
+└── requirements.txt                # Python backend dependencies
 ```
 
 ---
 
-## Running the Example
+## Environment Configuration
+
+### Backend Environment Variables (`.env`)
+
+Copy `.env.example` to `.env` in the project root:
 
 ```bash
-python examples/docqa_example.py
+cp .env.example .env
 ```
 
-This script:
-1. Reads `examples/example_input/2020.acl-main.45.pdf` and builds a knowledge graph
-2. Loads 13 questions from `13_qa.jsonl` (text and multi-modal chart questions)
-3. Runs RAG retrieval and generates answers
-4. Outputs a results report comparing answers against ground truth
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `OPENAI_API_KEY` | **Yes** | — | OpenAI API key for text LLM, vision, and Whisper transcription |
+| `OPENAI_MODEL` | No | `gpt-4o` | Primary OpenAI model |
+| `LLM_API_BASE` | No | `https://api.openai.com/v1` | OpenAI API endpoint base |
+| `MM_API_KEY` | No | `${OPENAI_API_KEY}` | Vision LLM API key override |
+| `MM_MODEL_NAME` | No | `gpt-4o` | Vision model override |
+| `EMBEDDING_MODEL_DIR` | No | `sentence-transformers/all-MiniLM-L6-v2` | SentenceTransformer model path or HuggingFace ID |
+| `SUPABASE_URL` | **Yes** | — | Supabase project URL |
+| `SUPABASE_ANON_KEY` | **Yes** | — | Supabase anonymous API key |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Yes** | — | Supabase service role key (for backend admin operations) |
+| `SUPABASE_JWT_SECRET` | **Yes** | — | Secret key to verify client Supabase JWT tokens |
+| `ALLOWED_ORIGINS` | **Yes** | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
+| `USE_MINERU` | No | `false` | Enable MinerU parser (`true`/`false`) |
+| `INPUT_PDF_PATH` | No | `data/input/` | Input directory path |
+| `WORKING_DIR` | No | `data/working` | Intermediate build directory |
+| `CACHE_PATH` | No | `data/cache` | Cache directory |
+| `OUTPUT_DIR` | No | `data/output` | GraphML & embeddings output directory |
+
+### Frontend Environment Variables (`frontend/.env`)
+
+Copy `frontend/.env.example` to `frontend/.env`:
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `VITE_SUPABASE_URL` | **Yes** | — | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | **Yes** | — | Supabase anon key |
+| `VITE_API_BASE` | No | `""` (proxied in dev) | Deployed backend URL (e.g. `https://api.example.com`). Leave empty in development to use Vite's dev proxy to `http://localhost:8000`. |
+
+---
+
+## Installation & Setup
+
+### Prerequisites
+
+- **Python**: Version `3.11` or higher (`3.12` recommended for containerized builds).
+- **Node.js**: Version `18.0.0` or higher (`npm` included).
+- **Supabase Account**: An active Supabase project with JWT authentication enabled.
+- **OpenAI API Key**: An active key with access to `gpt-4o` and audio models.
+
+---
+
+### Backend Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/your-org/InnovaHack.git
+   cd InnovaHack
+   ```
+
+2. **Create and activate a virtual environment**:
+   ```bash
+   python -m venv venv
+   # On macOS/Linux:
+   source venv/bin/activate
+   # On Windows (PowerShell):
+   .\venv\Scripts\Activate.ps1
+   ```
+
+3. **Install Python dependencies**:
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+4. **(Optional) Install MinerU for advanced PDF layout extraction**:
+   ```bash
+   pip install -U "mineru[all]"
+   ```
+   *Note: If MinerU is not installed or `USE_MINERU=false`, the backend seamlessly falls back to PyMuPDF (`pymupdf`).*
+
+5. **Configure environment variables**:
+   Create `.env` based on `.env.example` and set your API keys and Supabase credentials.
+
+---
+
+### Frontend Setup
+
+1. **Navigate to the frontend directory**:
+   ```bash
+   cd frontend
+   ```
+
+2. **Install Node dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure frontend environment variables**:
+   Create `frontend/.env` based on `frontend/.env.example`.
+
+---
+
+## Usage Instructions
+
+### 1. Running the Full-Stack Web Application
+
+#### Start the FastAPI Backend Server:
+```bash
+# From project root:
+uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
+```
+- API Base URL: `http://localhost:8000`
+- Interactive OpenAPI Docs: `http://localhost:8000/docs`
+- ReDoc Docs: `http://localhost:8000/redoc`
+
+#### Start the React Frontend Dashboard:
+```bash
+# From frontend/ directory:
+npm run dev
+```
+- Open `http://localhost:5173` in your browser.
+
+---
+
+### 2. CLI Usage
+
+The root `main.py` provides a CLI for command-line graph indexing, querying, and visualization:
+
+```bash
+# Build knowledge graph from a document (PDF, DOCX, XLSX, MP3, WAV, PNG)
+python main.py -i data/input/compliance_report.pdf
+
+# Query the knowledge graph via GraphRAG
+python main.py -q "What are the primary compliance risks described in the document?"
+
+# Force rebuild ignoring cache
+python main.py -i data/input/compliance_report.pdf -f
+
+# Specify custom working and output directories
+python main.py -i data/input/compliance_report.pdf -w data/working -o data/output
+
+# Run with verbose debugging logs
+python main.py -i data/input/compliance_report.pdf -v
+```
+
+#### CLI Flag Reference
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--input` | `-i` | Input file path (`.pdf`, `.docx`, `.xlsx`, `.mp3`, `.wav`, `.png`, etc.) |
+| `--query` | `-q` | RAG query string |
+| `--serve` | `-s` | Launch standalone Flask visualization server |
+| `--working-dir` | `-w` | Override working directory |
+| `--output-dir` | `-o` | Override output directory |
+| `--mmkg-name` | `-m` | Override knowledge graph output name |
+| `--force` | `-f` | Force rebuild (bypass cache) |
+| `--verbose` | `-v` | Enable verbose logging |
+| `--port` | — | Server port for visualization server (default: `5000`) |
+
+---
+
+### 3. Standalone Visualization Server
+
+To run the legacy/standalone Flask graph visualizer UI:
+
+```bash
+python main.py -s --port 5000
+# Access interactive graph explorer at http://localhost:5000
+```
+
+---
+
+### 4. Docker Deployment
+
+Build and run the containerized backend using Docker:
+
+```bash
+# Build the Docker image
+docker build -t innova-backend .
+
+# Run the container
+docker run -d -p 8000:8000 --env-file .env --name innova-backend-container innova-backend
+```
+
+---
+
+### 5. Evaluation & Benchmarks
+
+Run the built-in document Q&A evaluation benchmark:
+
+```bash
+# Run docqa evaluation script
+python examples/docqa_example.py
+
+# Run general evaluation pipeline
+python eval/evaluate.py
+```
+
+---
+
+## REST API Reference
+
+The backend exposes a full suite of REST endpoints guarded by JWT authentication (`Bearer <token>`).
+
+### Public Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | System status & app details |
+| `GET` | `/health` | Service health & dependency check |
+| `POST` | `/api/auth/register` | Register a new user |
+| `POST` | `/api/auth/login` | Login user & issue session token |
+
+### Protected Workspace Endpoints (`Bearer <token>` required)
+
+| Category | Method | Endpoint | Description |
+|----------|--------|----------|-------------|
+| **Workspaces** | `GET` | `/api/workspaces` | List accessible user workspaces |
+| | `POST` | `/api/workspaces` | Create a new workspace |
+| | `GET` | `/api/workspaces/{id}` | Get workspace details |
+| | `GET` | `/api/workspaces/{id}/audit` | Retrieve workspace audit logs |
+| **Ingestion** | `POST` | `/api/workspace/upload` | Ingest document into workspace & trigger KG build |
+| **GraphRAG** | `POST` | `/api/workspace/query` | Execute workspace GraphRAG query |
+| | `GET` | `/api/workspace/graph` | Fetch graph nodes/edges for visual explorer |
+| | `POST` | `/api/workspace/report` | Generate compliance report with citations & evidence |
+| **Cases** | `GET` | `/api/cases` | List workspace compliance cases |
+| | `POST` | `/api/cases` | Create a new compliance case |
+| | `GET` | `/api/cases/{id}` | Retrieve case details & attached evidence |
+| **Storage** | `GET` | `/api/storage/status` | Storage health & backend persistence status |
+
+---
+
+## License
+
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.

@@ -189,6 +189,9 @@ def get_latest_graphml_file(folder_path: str) -> tuple[str, str]:
     namespace = "chunk_entity_relation"
     file_path = None
 
+    if not os.path.isdir(folder_path):
+        return namespace, os.path.join(folder_path, "graph_chunk_entity_relation.graphml")
+
     for filename in os.listdir(folder_path):
         match = re.match(pattern, filename)
         if match:

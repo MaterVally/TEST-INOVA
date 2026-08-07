@@ -101,7 +101,6 @@ async def get_image_description(
                 img_base=img_base64,
                 system_prompt=PROMPTS["image_description_system"],
                 hashing_kv=hashing_kv,
-                timeout=30,
             ),
             timeout=30.0,
         )

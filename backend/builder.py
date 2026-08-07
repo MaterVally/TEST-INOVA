@@ -137,7 +137,7 @@ class MMKGBuilder:
         processor = _build_processor(file_path, self.working_dir, self.use_mineru)
         texts, _images = await processor.process()
 
-        text_chunking = TextChunking()
+        text_chunking = TextChunking(working_dir=self.working_dir)
         await text_chunking.text_chunking(texts)
 
     async def _step_text_extraction(self):
@@ -148,7 +148,7 @@ class MMKGBuilder:
 
         logger.info("📝 步骤 2/5 — 文本实体提取")
         chunks = load_json(os.path.join(self.working_dir, "kv_store_text_chunks.json")) or {}
-        extractor = TextEntityExtractor()
+        extractor = TextEntityExtractor(working_dir=self.working_dir, cache_dir=_cache_path)
         await extractor.text_entity_extraction(chunks)
 
     async def _step_image_extraction(self) -> list[str]:
@@ -174,7 +174,7 @@ class MMKGBuilder:
         if image_paths:
             # Run img2graph on the directory containing source images
             src_dir = os.path.dirname(image_paths[0])
-            await img2graph(src_dir)
+            await img2graph(src_dir, working_dir=self.working_dir)
 
         return img_ids
 

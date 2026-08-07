@@ -53,7 +53,7 @@ async def generate_report(
     try:
         svc    = WorkspaceDocumentService(user_id=auth.user_id, case_id=request.case_id)
         result = await svc.query(request.question, top_k=request.top_k)
-        graph_summary = svc._graph_summary()
+        graph_summary = svc.graph_summary()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:

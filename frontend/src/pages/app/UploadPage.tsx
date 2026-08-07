@@ -1,13 +1,15 @@
-import { type DragEvent, type ChangeEvent, useRef, useState } from 'react'
+import { type DragEvent, type ChangeEvent, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowRight,
+  ArrowUpRight,
   CheckCircle2,
   FileAudio,
   FileCode2,
   FileImage,
   FileSpreadsheet,
   FileText,
+  FolderKanban,
   Loader2,
   Network,
   Sparkles,
@@ -17,6 +19,25 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getAccessToken } from '../../auth/tokenStore'
+
+const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
+
+interface RecentCase {
+  id: string
+  title: string
+  status: 'processing' | 'completed' | 'failed'
+  created_at: string
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
 
 // --- File Type Metadata ---
 type FileFormat = 'pdf' | 'docx' | 'xlsx' | 'audio' | 'image' | 'unknown'
@@ -42,7 +63,7 @@ interface PipelineStage {
 
 const PIPELINE_STAGES: PipelineStage[] = [
   { id: 'parsing', label: '1. Layout & Media Parsing', description: 'MinerU OCR & audio/image preprocessor' },
-  { id: 'extracting', label: '2. Multi-Modal Entity Extraction', description: 'Qwen Text LLM & YOLOv8 + Qwen-VL Scene Graph' },
+  { id: 'extracting', label: '2. Multi-Modal Entity Extraction', description: 'OpenAI Text LLM & YOLOv8 + OpenAI Vision Scene Graph' },
   { id: 'fusion', label: '3. Spectral Clustering Fusion', description: 'DBSCAN + SentenceTransformer vector graph fusion' },
   { id: 'completed', label: '4. GraphRAG Indexing', description: 'NetworkX GraphML serialization & vector store index' },
 ]
@@ -91,6 +112,28 @@ export default function UploadPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [activeStageIndex, setActiveStageIndex] = useState(0)
   const [globalProgress, setGlobalProgress] = useState(0)
+  const [recentCases, setRecentCases] = useState<RecentCase[]>([])
+  const [loadingCases, setLoadingCases] = useState(true)
+
+  // Fetch recent cases on mount and after a successful upload
+  async function fetchRecentCases() {
+    setLoadingCases(true)
+    try {
+      const token = getAccessToken()
+      const r = await fetch(`${API_BASE}/api/cases`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (r.ok) {
+        const d = await r.json()
+        const list: RecentCase[] = Array.isArray(d) ? d : (d.cases ?? [])
+        setRecentCases(list.slice(0, 5)) // show latest 5
+      }
+    } catch { /* silent */ } finally {
+      setLoadingCases(false)
+    }
+  }
+
+  useEffect(() => { void fetchRecentCases() }, [])
 
   // --- Handlers for Drag & Drop ---
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -171,8 +214,10 @@ export default function UploadPage() {
 
       try {
         const formData = new FormData()
-        formData.append('file', targetFile.file)
-        const resp = await fetch('http://localhost:8000/api/upload/', {
+        formData.append('files', targetFile.file)
+        const activeCaseId = localStorage.getItem('innova_active_case_id')
+        if (activeCaseId) formData.append('case_id', activeCaseId)
+        const resp = await fetch(`${API_BASE}/api/upload/`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token ?? ''}`,
@@ -192,8 +237,8 @@ export default function UploadPage() {
             }
             // Pull real graph stats if the backend returned them
             const kg = resJson.knowledge_graph ?? {}
-            if (kg.nodes) nodeCount = kg.nodes
-            if (kg.edges) edgeCount = kg.edges
+            if (kg.nodes != null) nodeCount = kg.nodes
+            if (kg.edges != null) edgeCount = kg.edges
           } catch {
             // Keep default counts if JSON payload lacks stats
           }
@@ -250,6 +295,7 @@ export default function UploadPage() {
 
     setGlobalProgress(100)
     setIsProcessing(false)
+    void fetchRecentCases() // refresh recent cases list after upload completes
   }
 
   const isAllCompleted = files.length > 0 && files.every((f) => f.stage === 'completed')
@@ -582,6 +628,80 @@ export default function UploadPage() {
           </div>
         </motion.div>
       )}
+
+      {/* ────────────────── Recent Uploads ────────────────── */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+        className="glass-panel rounded-2xl p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <FolderKanban className="w-4 h-4 text-indigo-400" />
+            <h3 className="text-sm font-bold text-white">Recent Uploads</h3>
+          </div>
+          <button
+            onClick={() => navigate('/app/cases')}
+            className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 transition-colors"
+          >
+            View all <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {loadingCases ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+          </div>
+        ) : recentCases.length === 0 ? (
+          <p className="text-xs text-slate-500 text-center py-6">
+            No uploads yet — drop a file above to get started.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {recentCases.map(c => (
+              <div
+                key={c.id}
+                className="flex items-center justify-between p-3 rounded-xl bg-slate-900/50 border border-white/5 hover:border-indigo-500/20 transition-all group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-200 truncate group-hover:text-indigo-300 transition-colors">
+                      {c.title}
+                    </p>
+                    <p className="text-[11px] text-slate-500">{timeAgo(c.created_at)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                    c.status === 'completed'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : c.status === 'processing'
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                  }`}>
+                    {c.status}
+                  </span>
+                  <button
+                    onClick={() => {
+                      localStorage.setItem('innova_active_case_id', c.id)
+                      navigate(`/app/cases/${c.id}`)
+                    }}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+                    title="Open case"
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+
     </div>
   )
 }

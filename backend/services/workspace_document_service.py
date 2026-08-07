@@ -53,6 +53,7 @@ class WorkspaceDocumentService:
         self.user_id = user_id
         self.case_id = case_id
         self.ws = UserWorkspace(user_id=user_id, case_id=case_id).ensure()
+        self._cached_graph_summary: dict | None = None
 
     # ------------------------------------------------------------------
     # Upload + pipeline
@@ -149,18 +150,27 @@ class WorkspaceDocumentService:
 
         start = time.time()
 
-        # GraphRAGQuery reads graph from working_dir and embeddings from output_dir
-        # Pass workspace-scoped cache_path so LLM responses are isolated per user/case
+        # GraphRAGQuery reads graph from working_dir and embeddings from output_dir.
+        # Pass the final output graphml explicitly so the query engine uses the
+        # fully-fused graph (not an intermediate working-dir file).
+        # Pass workspace-scoped cache_path so LLM responses are isolated per user/case.
+        from backend.config import MMKG_NAME as _MMKG_NAME
+        output_graph = self.ws.output / f"{_MMKG_NAME}.graphml"
+        graph_path   = str(output_graph) if output_graph.exists() else None
+
         query_engine = GraphRAGQuery(
             working_dir=str(self.ws.working),
-            embedding_path=str(self.ws.output / f"{MMKG_NAME}_emb.npy"),
+            graph_path=graph_path,
+            embedding_path=str(self.ws.output / f"{_MMKG_NAME}_emb.npy"),
             cache_path=str(self.ws.cache),
         )
 
         from backend.config import QueryParam
+        # Capture top_k before the class body (class scope can't close over local vars)
+        _top_k = top_k
         # Create a per-request param copy to avoid mutating the global class
         class _Param:
-            top_k = top_k
+            top_k = _top_k
             response_type = QueryParam.response_type
             local_max_token_for_local_context = QueryParam.local_max_token_for_local_context
             number_of_mmentities = QueryParam.number_of_mmentities
@@ -194,7 +204,14 @@ class WorkspaceDocumentService:
     # ------------------------------------------------------------------
 
     def _graph_summary(self) -> dict:
-        """Read the workspace graph and return node/edge/type counts."""
+        """Read the workspace graph and return node/edge/type counts.
+
+        Result is cached on the instance so repeated calls within the same
+        request (e.g. query() followed by graph_summary()) only hit disk once.
+        """
+        if self._cached_graph_summary is not None:
+            return self._cached_graph_summary
+
         # Try workspace-specific path first, then legacy MMKG_NAME path
         candidates = [
             self.ws.graph_path,
@@ -203,7 +220,8 @@ class WorkspaceDocumentService:
         graph_path = next((p for p in candidates if p.exists()), None)
 
         if graph_path is None:
-            return {"available": False}
+            self._cached_graph_summary = {"available": False}
+            return self._cached_graph_summary
 
         try:
             G             = nx.read_graphml(str(graph_path))
@@ -211,7 +229,7 @@ class WorkspaceDocumentService:
             for _, data in G.nodes(data=True):
                 etype = data.get("entity_type", "UNKNOWN").replace('"', "")
                 entity_types[etype] = entity_types.get(etype, 0) + 1
-            return {
+            self._cached_graph_summary = {
                 "available":    True,
                 "graph_path":   str(graph_path),
                 "nodes":        G.number_of_nodes(),
@@ -220,7 +238,18 @@ class WorkspaceDocumentService:
             }
         except Exception as exc:
             logger.warning("Could not read graph for summary: %s", exc)
-            return {"available": False, "error": str(exc)}
+            self._cached_graph_summary = {"available": False, "error": str(exc)}
+
+        return self._cached_graph_summary
+
+    def graph_summary(self) -> dict:
+        """Public alias for _graph_summary().
+
+        Route code should call this instead of the private method directly.
+        The result is cached so multiple calls within the same service instance
+        only read the graphml file once.
+        """
+        return self._graph_summary()
 
     def _save_report_json(self, graph_summary: dict, file_results: list) -> None:
         """Persist a report.json in the workspace output directory."""

@@ -18,21 +18,11 @@ import {
   Loader2,
   CheckCircle2,
   ShieldAlert,
-  Crown,
-  Eye,
-  BarChart2,
 } from 'lucide-react'
 import { getAccessToken } from '../../auth/tokenStore'
 import { useAuth } from '../../auth/AuthContext'
 
 // ─── Types ───────────────────────────────────────────────
-interface WorkspaceMember {
-  user_id: string
-  role: 'Admin' | 'Analyst' | 'Viewer'
-  membership_status: string
-  email?: string
-}
-
 type Role = 'Admin' | 'Analyst' | 'Viewer'
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -42,12 +32,6 @@ function authHeaders(workspaceId?: string | null): Record<string, string> {
   if (token) h['Authorization'] = `Bearer ${token}`
   if (workspaceId) h['X-Workspace-ID'] = workspaceId
   return h
-}
-
-const ROLE_ICONS: Record<Role, React.ReactNode> = {
-  Admin: <Crown size={12} className="text-amber-400" />,
-  Analyst: <BarChart2 size={12} className="text-cyan-400" />,
-  Viewer: <Eye size={12} className="text-slate-400" />,
 }
 
 const ROLE_COLORS: Record<Role, string> = {
@@ -61,8 +45,6 @@ export default function SettingsPage() {
   const { workspaceId, user } = useAuth()
 
   const [wsName, setWsName] = useState<string>('')
-  const [members, setMembers] = useState<WorkspaceMember[]>([])
-  const [loadingMembers, setLoadingMembers] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<Role>('Viewer')
   const [inviting, setInviting] = useState(false)

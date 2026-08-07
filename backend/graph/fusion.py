@@ -15,7 +15,7 @@ from sklearn.cluster import DBSCAN
 from tqdm import tqdm
 
 from ..config import settings as parameter
-from ..config.settings import EMBED_MODEL
+from ..config.settings import get_embed_model
 from ..core.prompt import GRAPH_FIELD_SEP, PROMPTS
 from ..llm import (
     get_llm_response,
@@ -30,7 +30,7 @@ from ..utils.base import ensure_quoted, load_json, logger
 # ============================================================================
 
 def _get_json_path(filename: str, working_dir: str | None = None) -> str:
-    base = working_dir if working_dir else parameter.WORKING_DIR
+    base = working_dir or parameter.WORKING_DIR
     return os.path.join(base, filename)
 
 def get_image_data(working_dir: str | None = None) -> dict:
@@ -164,7 +164,7 @@ def _prepare_and_cluster_entities(nearby_text_entities, nearby_relationships):
         return np.array([]), []
     descriptions = [e["description"] for e in nearby_text_entities]
     entity_names = [e["entity_name"] for e in nearby_text_entities]
-    embeddings = _sanitize_embeddings(np.array(EMBED_MODEL.encode(descriptions)))
+    embeddings = _sanitize_embeddings(np.array(get_embed_model().encode(descriptions)))
     labels = _compute_spectral_labels(embeddings, entity_names, nearby_relationships)
     return embeddings, labels
 
@@ -192,7 +192,7 @@ def get_possible_entities_image_clustering(image_entity_description, nearby_text
     embeddings, labels = _prepare_and_cluster_entities(nearby_text_entities, nearby_relationships)
     if embeddings.size == 0:
         return []
-    input_embedding = EMBED_MODEL.encode([image_entity_description])
+    input_embedding = get_embed_model().encode([image_entity_description])
     target_label = _classify_by_nearest_neighbor(input_embedding, embeddings, labels, n_neighbors=3)[0]
     return [e for e, label in zip(nearby_text_entities, labels, strict=False) if label == target_label]
 
@@ -205,7 +205,7 @@ def get_possible_entities_text_clustering(filtered_image_entities, nearby_text_e
         return [], []
     image_entity_with_labels = []
     if filtered_image_entities:
-        img_embeddings = EMBED_MODEL.encode([e["description"] for e in filtered_image_entities])
+        img_embeddings = get_embed_model().encode([e["description"] for e in filtered_image_entities])
         img_labels     = _classify_by_nearest_neighbor(img_embeddings, embeddings, labels)
         for entity, label in zip(filtered_image_entities, img_labels, strict=False):
             image_entity_with_labels.append({
@@ -280,7 +280,7 @@ Include only one JSON list as the output, strictly following the structure above
 # ============================================================================
 
 def extract_image_entities(img_entity_name, working_dir: str | None = None):
-    base = working_dir if working_dir else parameter.WORKING_DIR
+    base = working_dir or parameter.WORKING_DIR
     path = os.path.join(base, f"images/{img_entity_name}/graph_{img_entity_name}_entity_relation.graphml")
     if not os.path.exists(path):
         logger.warning(f"⚠️  未找到GraphML文件: {path}")
@@ -323,7 +323,7 @@ def image_knowledge_graph_alignment(image_entity_name, working_dir: str | None =
 
 
 def enhanced_image_knowledge_graph(aligned_entities, image_entity_name, working_dir: str | None = None):
-    base         = working_dir if working_dir else parameter.WORKING_DIR
+    base         = working_dir or parameter.WORKING_DIR
     image_data   = get_image_data(working_dir)
     text_chunks  = get_text_chunks(working_dir)
     img_kg_path  = os.path.join(base, f"images/{image_entity_name}/graph_{image_entity_name}_entity_relation.graphml")
@@ -350,7 +350,7 @@ def enhanced_image_knowledge_graph(aligned_entities, image_entity_name, working_
     return enhanced_path
 
 def image_knowledge_graph_update(enhanced_path, image_entity_name, working_dir: str | None = None):
-    base        = working_dir if working_dir else parameter.WORKING_DIR
+    base        = working_dir or parameter.WORKING_DIR
     image_data  = get_image_data(working_dir)
     text_chunks = get_text_chunks(working_dir)
     chunk_kg    = get_chunk_knowledge_graph(working_dir)
@@ -413,7 +413,7 @@ def image_knowledge_graph_update(enhanced_path, image_entity_name, working_dir: 
 
 
 def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_entity_name, working_dir: str | None = None):
-    base         = working_dir if working_dir else parameter.WORKING_DIR
+    base         = working_dir or parameter.WORKING_DIR
     merged_path  = os.path.join(base, f"graph_merged_{image_entity_name}.graphml")
     image_graph  = nx.read_graphml(image_graph_path)
     text_graph   = nx.read_graphml(text_graph_path)
@@ -475,7 +475,7 @@ async def fusion(img_ids: list[str], working_dir: str | None = None) -> str:
         Workspace-scoped working directory. Defaults to global WORKING_DIR
         if not supplied (legacy / CLI usage).
     """
-    base       = working_dir if working_dir else parameter.WORKING_DIR
+    base       = working_dir or parameter.WORKING_DIR
     graph_path = os.path.join(base, "graph_chunk_entity_relation.graphml")
     if not img_ids:
         return graph_path

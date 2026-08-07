@@ -26,7 +26,7 @@ class GraphRAGQuery:
     def __init__(self, graph_path=None, embedding_path=None, working_dir=None, cache_path=None):
         self.working_dir    = working_dir or parameter.WORKING_DIR
         self.cache_path     = cache_path or parameter.CACHE_PATH  # T4: accept per-workspace cache path
-        self.embed_model    = parameter.EMBED_MODEL
+        self.embed_model    = parameter.get_embed_model()
 
         _namespace, default_graph_path = get_latest_graphml_file(self.working_dir)
         self.graph_path     = graph_path or default_graph_path
@@ -156,16 +156,17 @@ class GraphRAGQuery:
         # ----------------------------------------------------------------
         # Stage 1 — text-only GraphRAG answer
         # ----------------------------------------------------------------
-        sys_prompt = PROMPTS["rag_response"].format(
-            response_type=param.response_type
+        # Build a combined context_data string from entities, relationships, sources
+        context_data = (
+            f"## Entities\n{entities_ctx}\n\n"
+            f"## Relationships\n{rels_ctx}\n\n"
+            f"## Source Text\n{sources_ctx}"
         )
-        user_prompt = PROMPTS["local_rag_response"].format(
-            entities_context=entities_ctx,
-            relationships_context=rels_ctx,
-            sources_context=sources_ctx,
+        sys_prompt = PROMPTS["local_rag_response_augmented"].format(
             response_type=param.response_type,
-            query=question,
+            context_data=context_data,
         )
+        user_prompt = f"Question: {question}"
         text_answer = await model_if_cache(
             user_prompt, system_prompt=sys_prompt, hashing_kv=self.llm_cache
         )
@@ -193,17 +194,15 @@ class GraphRAGQuery:
                     continue
                 with open(img_path, "rb") as f:
                     img_b64 = base64.b64encode(f.read()).decode("utf-8")
-                mm_prompt = PROMPTS["mm_rag_response"].format(
-                    query=question,
-                    entity_description=node.get("description", ""),
-                    text_answer=text_answer,
+                mm_sys = PROMPTS["local_rag_response_multimodal"].format(
+                    response_type=param.response_type,
+                    context_data=context_data,
+                    image_information=node.get("description", ""),
                 )
                 mm_ans = await multimodel_if_cache(
-                    user_prompt=mm_prompt,
+                    user_prompt=f"Question: {question}",
                     img_base=img_b64,
-                    system_prompt=PROMPTS["rag_response"].format(
-                        response_type=param.response_type
-                    ),
+                    system_prompt=mm_sys,
                     hashing_kv=self.mm_cache,
                 )
                 mm_answers.append(mm_ans)
@@ -213,16 +212,14 @@ class GraphRAGQuery:
                 final_answer = text_answer
             else:
                 # Stage 3 — merge text + multimodal answers
-                merge_prompt = PROMPTS["merge_rag_response"].format(
-                    query=question,
-                    text_answer=text_answer,
-                    mm_answers="\n---\n".join(mm_answers),
+                merge_prompt = PROMPTS["local_rag_response_merge"].format(
+                    response_type=param.response_type,
+                    mm_response="\n---\n".join(mm_answers),
+                    response=text_answer,
                 )
                 final_answer = await model_if_cache(
                     merge_prompt,
-                    system_prompt=PROMPTS["rag_response"].format(
-                        response_type=param.response_type
-                    ),
+                    system_prompt=f"You are a helpful assistant. Respond in: {param.response_type}",
                     hashing_kv=self.llm_cache,
                 )
                 await asyncio.gather(

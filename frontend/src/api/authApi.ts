@@ -169,7 +169,10 @@ async function apiFetch<T>(
 ): Promise<T> {
   const { headers: initHeaders, ...restInit } = init
 
-  let resp = await fetch(path, {
+  const BASE = import.meta.env.VITE_API_BASE || ''
+  const url = path.startsWith('http') ? path : `${BASE.replace(/\/$/, '')}${path.startsWith('/') ? path : '/' + path}`
+
+  let resp = await fetch(url, {
     ...restInit,
     headers: buildHeaders(initHeaders, workspaceId),
   })
@@ -181,7 +184,7 @@ async function apiFetch<T>(
       // silentRefresh already redirected; throw to stop execution
       throw new Error('Session expired')
     }
-    resp = await fetch(path, {
+    resp = await fetch(url, {
       ...restInit,
       headers: buildHeaders(initHeaders, workspaceId),
     })

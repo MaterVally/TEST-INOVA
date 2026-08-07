@@ -10,8 +10,13 @@ The original query.py is NOT modified.
 """
 from __future__ import annotations
 
+import logging
+import traceback
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from backend.auth.dependencies import get_current_user
 from backend.auth.middleware.jwt_middleware import AuthContext
@@ -59,5 +64,9 @@ async def ask_question(
         }
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        tb = traceback.format_exc()
+        logger.error("Query 500 — case=%s user=%s\n%s", request.case_id, auth.user_id, tb)
+        raise HTTPException(status_code=500, detail=str(exc) or repr(exc)) from exc

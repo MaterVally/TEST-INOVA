@@ -17,17 +17,14 @@ from pathlib import Path
 from backend.compliance.evidence_engine import EvidenceEngine
 from backend.config import settings
 from backend.retrieval.query import GraphRAGQuery
+from backend.utils.base import get_latest_graphml_file
 
 
 class QueryService:
 
-    def __init__(self):
-        self.graph_path = (
-            Path(settings.OUTPUT_DIR) / f"{settings.MMKG_NAME}.graphml"
-        )
-
     async def ask(self, question: str, top_k: int = 10) -> dict:
-        if not self.graph_path.exists():
+        _, resolved_graph = get_latest_graphml_file(settings.WORKING_DIR)
+        if not Path(resolved_graph).exists():
             raise FileNotFoundError(
                 "Knowledge Graph not found. Upload and process a document first."
             )

@@ -38,6 +38,8 @@ function authHeaders(): Record<string, string> {
 export default function CasesPage() {
   const navigate = useNavigate();
 
+  const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
+
   const [loading, setLoading]       = useState(true);
   const [cases, setCases]           = useState<CaseItem[]>([]);
   const [search, setSearch]         = useState("");
@@ -49,7 +51,7 @@ export default function CasesPage() {
   async function loadCases() {
     try {
       setLoading(true);
-      const response = await fetch("http://localhost:8000/api/cases", { headers: authHeaders() });
+      const response = await fetch(`${API_BASE.replace(/\/$/, '')}/api/cases`, { headers: authHeaders() });
       const data = await response.json();
       // Backend returns { cases: [...] }
       setCases(Array.isArray(data) ? data : (data.cases ?? []));
@@ -65,7 +67,7 @@ export default function CasesPage() {
   async function createCase() {
     if (!newCaseName.trim()) return;
     try {
-      const response = await fetch("http://localhost:8000/api/cases", {
+      const response = await fetch(`${API_BASE.replace(/\/$/, '')}/api/cases`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ title: newCaseName }),

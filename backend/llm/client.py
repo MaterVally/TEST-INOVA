@@ -2,17 +2,18 @@
 LLM and multimodal LLM client — async/sync wrappers with KV caching.
 """
 import ast
+import asyncio
 import json
 import re
 from typing import Any
 
 import numpy as np
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI, OpenAI, RateLimitError
 
 from ..config.settings import (
     API_BASE,
     API_KEY,
-    EMBED_MODEL,
+    get_embed_model,
     MM_API_BASE,
     MM_API_KEY,
     MM_MODEL_NAME,
@@ -42,15 +43,39 @@ def _get_client(is_async: bool = False, is_multimodal: bool = False):
 
 
 # ============================================================================
+# Rate-limit retry helper
+# ============================================================================
+
+async def _with_retry(coro_fn, max_retries: int = 6, base_delay: float = 10.0):
+    """Call coro_fn() with exponential backoff on RateLimitError (429).
+
+    Waits base_delay * 2^attempt seconds between retries, capped at 120s.
+    Raises the last exception if all retries are exhausted.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return await coro_fn()
+        except RateLimitError as exc:
+            if attempt == max_retries:
+                raise
+            wait = min(base_delay * (2 ** attempt), 120.0)
+            logger.warning(
+                "Rate limit hit (attempt %d/%d) — retrying in %.1fs: %s",
+                attempt + 1, max_retries, wait, exc,
+            )
+            await asyncio.sleep(wait)
+
+
+# ============================================================================
 # Embedding
 # ============================================================================
 
 @wrap_embedding_func_with_attrs(
-    embedding_dim=EMBED_MODEL.get_sentence_embedding_dimension(),
-    max_token_size=EMBED_MODEL.max_seq_length,
+    embedding_dim=get_embed_model().get_sentence_embedding_dimension(),
+    max_token_size=get_embed_model().max_seq_length,
 )
 async def local_embedding(texts: list[str]) -> np.ndarray:
-    return EMBED_MODEL.encode(texts)
+    return get_embed_model().encode(texts)
 
 
 # ============================================================================
@@ -81,8 +106,10 @@ async def model_if_cache(
         if cached:
             return cached["return"]
 
-    response = await client.chat.completions.create(
-        model=MODEL_NAME, messages=messages, **kwargs
+    response = await _with_retry(
+        lambda: client.chat.completions.create(
+            model=MODEL_NAME, messages=messages, **kwargs
+        )
     )
     content = response.choices[0].message.content
 
@@ -141,8 +168,10 @@ async def multimodel_if_cache(
         if cached:
             return cached["return"]
 
-    response = await client.chat.completions.create(
-        model=MM_MODEL_NAME, messages=messages, **kwargs
+    response = await _with_retry(
+        lambda: client.chat.completions.create(
+            model=MM_MODEL_NAME, messages=messages, **kwargs
+        )
     )
     content = response.choices[0].message.content
 

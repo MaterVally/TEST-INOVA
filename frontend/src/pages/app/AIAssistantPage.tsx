@@ -84,9 +84,18 @@ interface ChatMessage {
   result?: QueryResult
 }
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `id-${Math.random().toString(36).slice(2)}-${Date.now()}`
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
+
+const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
 
 const SUGGESTED = [
   'Summarize this compliance report',
@@ -183,7 +192,7 @@ export default function AIAssistantPage() {
     const q = question.trim()
     if (!q || loading) return
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: q }
+    const userMsg: ChatMessage = { id: generateId(), role: 'user', content: q }
     setMessages((prev) => [...prev, userMsg])
     setQuestion('')
     setLoading(true)
@@ -195,7 +204,7 @@ export default function AIAssistantPage() {
 
       const token = getAccessToken()
 
-      const resp = await fetch('http://localhost:8000/api/query/', {
+      const resp = await fetch(`${API_BASE.replace(/\/$/, '')}/api/query/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +227,7 @@ export default function AIAssistantPage() {
       setMessages((prev) => [
         ...prev,
         {
-          id:      crypto.randomUUID(),
+          id:      generateId(),
           role:    'assistant',
           content: data.result.answer,
           result:  data.result,
@@ -228,7 +237,7 @@ export default function AIAssistantPage() {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setMessages((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), role: 'error', content: msg },
+        { id: generateId(), role: 'error', content: msg },
       ])
     } finally {
       setLoading(false)

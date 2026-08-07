@@ -28,6 +28,7 @@ from .settings import (
     USE_MINERU,
     WORKING_DIR,
     QueryParam,
+    get_embed_model,
 )
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "EMBED_MODEL",
     "ENTITY_EXTRACT_MAX_GLEANING",
     "ENTITY_SUMMARY_MAX_TOKENS",
+    "get_embed_model",
     "INPUT_PDF_PATH",
     "MMKG_NAME",
     "MM_API_BASE",

@@ -11,14 +11,17 @@
 from sentence_transformers import SentenceTransformer
 
 # ============ 模型配置 ============
-# API Configuration
-API_KEY = "Looking for the API key? So am I."
-API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-MODEL_NAME = "qwen3-max"
+# API Configuration (default to OpenAI-compatible endpoint)
+# Set `LLM_API_KEY` and optionally `LLM_MODEL_NAME` in your .env to override.
+API_KEY = ""
+API_BASE = "https://api.openai.com/v1"
+# Recommended default model for text tasks
+MODEL_NAME = "gpt-4o"
 
-MM_API_KEY = "If you find it, please don’t tell me. That's safer for both of us."
-MM_API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-MM_MODEL_NAME = "qwen-vl-max"
+MM_API_KEY = ""
+MM_API_BASE = "https://api.openai.com/v1"
+# Recommended default multimodal model (OpenAI vision-capable)
+MM_MODEL_NAME = "gpt-4o"
 
 # embedding模型加载
 EMBEDDING_MODEL_DIR = './models/all-MiniLM-L6-v2'

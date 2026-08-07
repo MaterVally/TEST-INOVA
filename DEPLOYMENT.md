@@ -1,0 +1,63 @@
+Deployment checklist
+====================
+
+This document lists the steps and required env vars to deploy the frontend to Vercel and the backend to Render.
+
+Frontend (Vercel)
+------------------
+- Project: `frontend/`
+- Build command: `npm run build`
+- Output directory: `frontend/dist` (Vite produces `dist` at project root during build)
+  - Vercel auto-detects Vite projects. Set Root to `frontend` in Vercel project settings.
+- Environment variables to set in Vercel:
+  - `VITE_API_BASE` -> backend public URL (e.g., `https://your-backend.onrender.com`)
+  - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` if using Supabase (already used by frontend)
+- Recommended: set `NODE_ENV=production`.
+
+Backend (Render)
+-----------------
+- Service type: Web Service (Python)
+- Build command: `pip install -r requirements.txt`
+- Start command (Procfile provided): `uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT --workers 1`
+- Environment variables to set in Render (minimum):
+  - `LLM_API_KEY` (OpenAI API key)
+  - `MM_API_KEY` (OpenAI or same key)
+  - `MM_API_BASE` (optional, defaults to `https://api.openai.com/v1`)
+  - `ALLOWED_ORIGINS` (comma-separated list; include the Vercel frontend origin e.g. `https://your-app.vercel.app`)
+  - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` (if using auth)
+  - `OPENAI_API_KEY` (for Whisper/transcription usage) or rely on `LLM_API_KEY`
+- Attach persistent disks or S3 for large file storage if needed (optional)
+
+CORS and API base
+------------------
+- Ensure `ALLOWED_ORIGINS` includes the Vercel frontend domain, otherwise backend will refuse to start (startup guard).
+- Set `VITE_API_BASE` in Vercel to the Render service URL so frontend fetches reach backend.
+
+Other considerations
+--------------------
+- Secrets: add as Render environment variables (do not commit `.env`).
+- Static assets: frontend build will create `dist/`; Vercel serves it.
+- MinerU, YOLO weights, and other heavy binaries: these are not installed on Render by default. If you require MinerU, either:
+  - bundle it into a Docker image and deploy to Render as a Docker service, or
+  - configure Render to run setup commands to install MinerU on start (advanced).
+
+Quick test (local)
+------------------
+1. Start backend locally:
+```powershell
+python -m venv venv
+venv\Scripts\pip install -r requirements.txt
+venv\Scripts\uvicorn backend.api.main:app --reload
+```
+2. Start frontend locally (from `frontend/`):
+```bash
+npm install
+npm run dev
+```
+3. Set `VITE_API_BASE=http://localhost:8000` for the frontend dev server or rely on proxy in `vite.config.ts`.
+
+If you want, I can:
+- Create a minimal `render.yaml` for Render (Docker vs native), or
+- Convert the backend into a Docker-based service to allow MinerU and custom system packages on Render.
+
+*** End of document

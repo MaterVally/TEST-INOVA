@@ -39,6 +39,8 @@ interface Case {
 }
 
 // ─── Helpers ─────────────────────────────────────────────
+const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
+
 function authHeaders(workspaceId?: string | null): Record<string, string> {
   const token = getAccessToken()
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -83,7 +85,7 @@ export default function CaseDetailPage() {
     if (!caseId) return
     void (async () => {
       try {
-        const resp = await fetch(`/api/cases/${encodeURIComponent(caseId)}`, {
+        const resp = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
           headers: authHeaders(workspaceId),
         })
         if (!resp.ok) throw new Error(`Case not found (${resp.status})`)
@@ -104,7 +106,7 @@ export default function CaseDetailPage() {
     if (!caseId) return
     setSaving(true)
     try {
-      const resp = await fetch(`/api/cases/${encodeURIComponent(caseId)}`, {
+      const resp = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
         method: 'PATCH',
         headers: authHeaders(workspaceId),
         body: JSON.stringify({
@@ -130,13 +132,12 @@ export default function CaseDetailPage() {
     if (!caseId) return
     setDeleting(true)
     try {
-      const resp = await fetch(`/api/cases/${encodeURIComponent(caseId)}`, {
+      const resp = await fetch(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
         method: 'DELETE',
         headers: authHeaders(workspaceId),
       })
       if (!resp.ok) throw new Error(`Error ${resp.status}`)
-      // Persist case_id to localStorage for graph/AI pages before navigating away
-      try { localStorage.setItem('innova_last_case_id', caseId) } catch { /* ignore */ }
+      localStorage.removeItem('innova_active_case_id')
       navigate('/app/cases')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed')
@@ -147,7 +148,7 @@ export default function CaseDetailPage() {
   // ── Navigate to action and set case_id ───────────────
   function goTo(path: string) {
     if (caseId) {
-      try { localStorage.setItem('innova_last_case_id', caseId) } catch { /* ignore */ }
+      try { localStorage.setItem('innova_active_case_id', caseId) } catch { /* ignore */ }
     }
     navigate(path)
   }
@@ -288,7 +289,7 @@ export default function CaseDetailPage() {
           type="button"
           onClick={() => {
             navigator.clipboard.writeText(caseData.id)
-            try { localStorage.setItem('innova_last_case_id', caseData.id) } catch { /* ignore */ }
+            try { localStorage.setItem('innova_active_case_id', caseData.id) } catch { /* ignore */ }
           }}
           className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
         >

@@ -28,15 +28,6 @@ import RegisterPage        from './pages/RegisterPage'
 import PasswordResetPage   from './pages/PasswordResetPage'
 import WorkspaceSelectPage from './pages/WorkspaceSelectPage'
 import WorkspacePlaceholder from './pages/app/WorkspacePlaceholder'
-<<<<<<< Updated upstream
-import DashboardPage        from './pages/app/DashboardPage'
-import UploadPage           from './pages/app/UploadPage'
-import KnowledgeGraphPage   from './pages/app/KnowledgeGraphPage'
-import AIAssistantPage      from './pages/app/AIAssistantPage'
-import CasesPage            from './pages/app/CasesPage'
-import ReportsPage          from './pages/app/ReportsPage'
-import EvidencePage         from './pages/app/EvidencePage'
-=======
 import DashboardPage from './pages/app/DashboardPage'
 import UploadPage from './pages/app/UploadPage'
 import KnowledgeGraphPage from './pages/app/KnowledgeGraphPage.tsx'
@@ -47,7 +38,6 @@ import EvidencePage from './pages/app/EvidencePage'
 import ProfilePage from './pages/app/ProfilePage'
 import SettingsPage from './pages/app/SettingsPage'
 import CaseDetailPage from './pages/app/CaseDetailPage'
->>>>>>> Stashed changes
 
 // ─────────────────────────────────────────────────────────
 // Root redirect

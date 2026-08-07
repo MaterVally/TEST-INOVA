@@ -43,7 +43,7 @@ MIN_IMAGE_SIZE = 28
 # Image region extraction — GPT-4o vision (replaces YOLOv8 segmentation)
 # ============================================================================
 
-async def extract_feature_chunks(image_path: str) -> str:
+async def extract_feature_chunks(image_path: str, working_dir: str | None = None) -> str:
     """Identify distinct regions/objects in the image using GPT-4o vision.
 
     Instead of running YOLOv8 segmentation to crop regions, we ask GPT-4o to
@@ -63,8 +63,9 @@ async def extract_feature_chunks(image_path: str) -> str:
     from ..llm import multimodel_if_cache
     from ..storage.kv_storage import JsonKVStorage
 
+    base       = working_dir or parameter.WORKING_DIR
     image_name = Path(image_path).stem
-    save_dir   = os.path.join(parameter.WORKING_DIR, "images", image_name)
+    save_dir   = os.path.join(base, "images", image_name)
     os.makedirs(save_dir, exist_ok=True)
 
     # Skip if already processed (idempotent)
@@ -107,14 +108,14 @@ async def extract_feature_chunks(image_path: str) -> str:
     # ------------------------------------------------------------------
     # Parse and write one synthetic placeholder JPEG per region
     # ------------------------------------------------------------------
-    for line in raw.splitlines():
-        line = line.strip()
+    for raw_line in raw.splitlines():
+        line = raw_line.strip()
         if not line.startswith("REGION:"):
             continue
         try:
-            parts      = dict(p.split(":", 1) for p in line.split("|"))
+            parts = dict(p.split(":", 1) for p in line.split("|"))
             short_name = parts.get("REGION", "region").strip().replace(" ", "_")
-            # Write a 1×1 white placeholder JPEG so _get_jpg_files picks it up
+            # Write a 1x1 white placeholder JPEG so _get_jpg_files picks it up
             placeholder = os.path.join(save_dir, f"{short_name}.jpg")
             if not os.path.exists(placeholder):
                 Image.new("RGB", (32, 32), color=(200, 200, 200)).save(placeholder)
@@ -131,8 +132,6 @@ async def extract_feature_chunks(image_path: str) -> str:
         pass
 
     return save_dir
-
-
 # ============================================================================
 # Entity extraction helpers
 # ============================================================================
@@ -323,17 +322,23 @@ class ImageEntityExtractor:
     extraction_func:   callable              = extract_entities
     kv_storage_cls:    type[BaseKVStorage]   = JsonKVStorage
     graph_storage_cls: type[BaseGraphStorage] = NetworkXStorage
+    working_dir:       str | None            = None
 
     def __post_init__(self):
+        cache_dir = self.working_dir or parameter.CACHE_PATH
         self.llm_cache = self.kv_storage_cls(
             namespace="multimodel_llm_response_cache",
-            storage_dir=parameter.CACHE_PATH
+            storage_dir=cache_dir,
         )
-        self.graph = self.graph_storage_cls(namespace="image_entity_relation")
+        graph_dir = self.working_dir or parameter.WORKING_DIR
+        self.graph = self.graph_storage_cls(
+            namespace="image_entity_relation",
+            storage_dir=graph_dir,
+        )
 
     async def extract(self, image_path: str):
         try:
-            feature_dir = await extract_feature_chunks(image_path)
+            feature_dir = await extract_feature_chunks(image_path, working_dir=self.working_dir)
             logger.info("🔍 正在提取实体...")
             result = await self.extraction_func(
                 self.llm_cache, image_path, feature_dir, knwoledge_graph_inst=self.graph,
@@ -353,23 +358,25 @@ class ImageEntityExtractor:
         await asyncio.gather(*tasks)
 
 
-async def img2graph(images_dir: str):
+async def img2graph(images_dir: str, working_dir: str | None = None):
     jpg_files = _get_jpg_files(images_dir)
     if not jpg_files:
         return
 
+    base = working_dir or parameter.WORKING_DIR
+
     for image_path in tqdm(jpg_files, desc="🖼️ 图像实体提取", unit="张"):
-        image_name       = Path(image_path).stem
+        image_name        = Path(image_path).stem
         target_graph_path = os.path.join(
-            parameter.WORKING_DIR, "images", image_name,
+            base, "images", image_name,
             f"graph_{image_name}_entity_relation.graphml"
         )
         if os.path.exists(target_graph_path):
             continue
 
-        extractor = ImageEntityExtractor()
+        extractor = ImageEntityExtractor(working_dir=working_dir)
         await extractor.extract(image_path)
 
-        src = os.path.join(parameter.WORKING_DIR, "graph_image_entity_relation.graphml")
+        src = os.path.join(base, "graph_image_entity_relation.graphml")
         if os.path.exists(src):
             shutil.move(src, target_graph_path)

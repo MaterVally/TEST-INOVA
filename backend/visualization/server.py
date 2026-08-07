@@ -150,7 +150,7 @@ def graph_retrieve():
         import numpy as np
         from sklearn.metrics.pairwise import cosine_similarity
 
-        embed_model  = parameter.EMBED_MODEL
+        embed_model  = parameter.get_embed_model()
         embed_path   = os.path.join(parameter.OUTPUT_DIR, f"{parameter.MMKG_NAME}_emb.npy")
         graph_path   = _get_graph_path()
 

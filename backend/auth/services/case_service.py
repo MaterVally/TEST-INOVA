@@ -104,10 +104,12 @@ async def create_case(user_id: str, title: str, description: str | None) -> dict
             .from_("cases")
             .insert(payload)
             .select()
-            .single()
             .execute()
         )
-        return result.data
+        rows = result.data
+        if not rows:
+            raise RuntimeError("Insert returned no rows")
+        return rows[0]
     except Exception as exc:
         logger.error("create_case failed for user=%s: %s", user_id, exc)
         raise HTTPException(
@@ -153,7 +155,7 @@ async def get_case(case_id: str, user_id: str) -> dict:
             .maybe_single()
             .execute()
         )
-        case = result.data
+        case = result.data if result is not None else None
     except Exception as exc:
         logger.error("get_case failed for user=%s case=%s: %s", user_id, case_id, exc)
         raise HTTPException(

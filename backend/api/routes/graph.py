@@ -1,20 +1,17 @@
 """
-Graph API
+Graph API — CLI / legacy use only.
 
-FastAPI wrapper around the existing visualization module.
+This module is NOT registered in main.py. All authenticated graph requests
+are handled by workspace_graph.py at /api/graph, which is workspace-scoped.
 
-This module DOES NOT implement graph logic.
-
-It simply exposes graph information in a FastAPI-friendly way.
+This file is kept for local CLI inspection of the global output directory.
+Do NOT import `settings` (a QueryParam class) — use flat config vars instead.
 """
 
 import networkx as nx
 from fastapi import APIRouter, HTTPException
 
-from backend.config import settings
-
-# Note: this route is not registered in main.py (kept for CLI use only)
-# from backend.config import settings  # settings object does not exist; use flat vars instead
+from backend.config import MMKG_NAME, OUTPUT_DIR
 
 router = APIRouter(
     prefix="/graph",
@@ -23,15 +20,10 @@ router = APIRouter(
 
 
 def _load_graph():
-
-    graph_path = (
-        settings.OUTPUT_DIR +
-        f"/{settings.MMKG_NAME}.graphml"
-    )
+    graph_path = f"{OUTPUT_DIR}/{MMKG_NAME}.graphml"
 
     try:
         return nx.read_graphml(graph_path)
-
     except Exception as exc:
         raise HTTPException(
             status_code=404,

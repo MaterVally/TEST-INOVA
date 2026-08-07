@@ -18,11 +18,12 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from backend.auth.dependencies import get_current_user
 from backend.auth.middleware.jwt_middleware import AuthContext
 from backend.auth.workspace import UserWorkspace
+from backend.auth.services.case_service import create_case, get_case
 from backend.services.workspace_document_service import WorkspaceDocumentService
 
 logger = logging.getLogger(__name__)
@@ -50,23 +51,40 @@ def _sanitize(name: str) -> str:
 @router.post("/")
 async def upload_documents(
     files: list[UploadFile] = File(...),
+    case_id: str | None = Form(default=None),
     auth: AuthContext = Depends(get_current_user),
 ):
     """Upload documents into the authenticated user's workspace.
 
-    - Generates a new case_id for this upload session.
+    - If case_id is provided, files are added to that existing case.
+    - If case_id is omitted, a new case is created automatically.
     - Saves files to data/users/{user_id}/cases/{case_id}/uploads/
     - Runs the MMKGBuilder pipeline inside the same workspace.
-    - Graph output lands in data/users/{user_id}/cases/{case_id}/output/
 
     user_id is taken from the JWT — never from the request.
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded.")
 
-    # Create an isolated workspace for this upload session
-    case_id = str(uuid.uuid4())
-    ws      = UserWorkspace(user_id=auth.user_id, case_id=case_id).ensure()
+    # Resolve or create the case
+    if case_id:
+        # Verify ownership — raises 404 if not found or not owned
+        try:
+            await get_case(case_id=case_id, user_id=auth.user_id)
+        except Exception as exc:
+            raise HTTPException(status_code=404, detail="Case not found.") from exc
+    else:
+        # Auto-create a case named after the first file
+        first_name = files[0].filename or "Untitled"
+        case_title = Path(first_name).stem[:100] or "Untitled"
+        new_case = await create_case(
+            user_id=auth.user_id,
+            title=case_title,
+            description=None,
+        )
+        case_id = new_case["id"]
+
+    ws = UserWorkspace(user_id=auth.user_id, case_id=case_id).ensure()
 
     logger.info(
         "📁 New upload — user=%s case=%s files=%d",
