@@ -3,6 +3,7 @@ Runtime configuration for the Enterprise Compliance Intelligence Platform.
 ...
 """
 import os
+
 from dotenv import load_dotenv
 
 # Load .env BEFORE any os.environ.get() calls so env vars are available
@@ -12,12 +13,15 @@ load_dotenv()
 from sentence_transformers import SentenceTransformer
 
 # ============ LLM Configuration ============
-API_KEY   = os.environ.get("LLM_API_KEY",    "")
-API_BASE  = os.environ.get("LLM_API_BASE",   "https://api.openai.com/v1")
+# Text LLM — entity extraction, relation building, RAG answers
+API_KEY    = os.environ.get("LLM_API_KEY",    "")
+API_BASE   = os.environ.get("LLM_API_BASE",   "https://api.openai.com/v1")
 MODEL_NAME = os.environ.get("LLM_MODEL_NAME", "gpt-4o")
 
-MM_API_KEY   = os.environ.get("MM_API_KEY",    "")
-MM_API_BASE  = os.environ.get("MM_API_BASE",   "https://api.openai.com/v1")
+# Multimodal LLM — image understanding, visual entity extraction, scene graphs
+# Uses the same OpenAI key and endpoint; gpt-4o supports vision natively.
+MM_API_KEY    = os.environ.get("MM_API_KEY",    "")
+MM_API_BASE   = os.environ.get("MM_API_BASE",   "https://api.openai.com/v1")
 MM_MODEL_NAME = os.environ.get("MM_MODEL_NAME", "gpt-4o")
 
 # ============ Embedding Model ============
@@ -47,6 +51,10 @@ class QueryParam:
     local_max_token_for_text_unit: int = 4000
 
 RETRIEVAL_THRESHOLD: float = 0.2
+
+# ============ Audio / OpenAI Whisper Configuration ============
+# Audio transcription uses OpenAI Whisper — same key as LLM_API_KEY.
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "") or os.environ.get("LLM_API_KEY", "")
 
 # ============ Auth / Supabase Configuration ============
 SUPABASE_URL              = os.environ.get("SUPABASE_URL",              "")

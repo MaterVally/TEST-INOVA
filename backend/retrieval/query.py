@@ -3,27 +3,23 @@ GraphRAG query engine — semantic retrieval over the knowledge graph.
 """
 import asyncio
 import base64
-import json
 import os
-import re
 
 import networkx as nx
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
 from ..config import settings as parameter
+from ..core.prompt import PROMPTS
+from ..llm import model_if_cache, multimodel_if_cache
+from ..storage.kv_storage import JsonKVStorage
 from ..utils.base import (
-    compute_mdhash_id,
-    encode_string_by_tiktoken,
     get_latest_graphml_file,
     list_of_list_to_csv,
     load_json,
     logger,
     truncate_list_by_token_size,
 )
-from ..core.prompt import PROMPTS
-from ..llm import model_if_cache, multimodel_if_cache
-from ..storage.kv_storage import JsonKVStorage
 
 
 class GraphRAGQuery:
@@ -32,7 +28,7 @@ class GraphRAGQuery:
         self.cache_path     = parameter.CACHE_PATH
         self.embed_model    = parameter.EMBED_MODEL
 
-        namespace, default_graph_path = get_latest_graphml_file(self.working_dir)
+        _namespace, default_graph_path = get_latest_graphml_file(self.working_dir)
         self.graph_path     = graph_path or default_graph_path
         self.embedding_path = embedding_path or os.path.join(
             parameter.OUTPUT_DIR, f"{parameter.MMKG_NAME}_emb.npy"
@@ -68,8 +64,8 @@ class GraphRAGQuery:
         text_units = []
         for node in node_datas:
             source_ids = node.get("source_id", "")
-            for sid in source_ids.split("<SEP>"):
-                sid = sid.strip()
+            for raw_sid in source_ids.split("<SEP>"):
+                sid = raw_sid.strip()
                 if sid in self.text_chunks:
                     text_units.append(self.text_chunks[sid])
         return text_units
@@ -79,7 +75,7 @@ class GraphRAGQuery:
         for node in node_datas:
             name = node.get("entity_name", "")
             if name in self.graph:
-                for src, tgt, data in self.graph.edges(name, data=True):
+                for _src, _tgt, data in self.graph.edges(name, data=True):
                     edges.append(data)
         return edges
 

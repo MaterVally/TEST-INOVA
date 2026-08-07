@@ -10,23 +10,28 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Type, Union, cast
+from typing import cast
 
 from PIL import Image
 from tqdm import tqdm
 
-from ..utils.base import load_json, limit_async_func_call, logger, split_string_by_multi_markers
+from ..config import settings as parameter
+from ..core.prompt import PROMPTS
+from ..llm import multimodel_if_cache
+from ..storage.graph_storage import BaseGraphStorage, NetworkXStorage
+from ..storage.kv_storage import BaseKVStorage, JsonKVStorage, StorageNameSpace
+from ..utils.base import (
+    limit_async_func_call,
+    load_json,
+    logger,
+    split_string_by_multi_markers,
+)
 from .utils import (
     _handle_single_entity_extraction,
     _handle_single_relationship_extraction,
-    _merge_nodes_then_upsert,
     _merge_edges_then_upsert,
+    _merge_nodes_then_upsert,
 )
-from ..llm import multimodel_if_cache
-from ..core.prompt import PROMPTS
-from ..storage.kv_storage import BaseKVStorage, JsonKVStorage, StorageNameSpace
-from ..storage.graph_storage import BaseGraphStorage, NetworkXStorage
-from ..config import settings as parameter
 
 TUPLE_DELIMITER      = PROMPTS["DEFAULT_TUPLE_DELIMITER"]
 RECORD_DELIMITER     = PROMPTS["DEFAULT_RECORD_DELIMITER"]
@@ -233,8 +238,14 @@ async def build_original_image_entity(image_path: str, feature_entities: list[st
             results.append(_build_relationship_string(matches[0], filename, f"{matches[0]}是{filename}的图像特征块。"))
 
     entity_pattern = r'\"entity\"\<\|\>\"([^\"]+?)\"'
-    for entity_name in re.findall(entity_pattern, extracted_result):
-        results.append(_build_relationship_string(entity_name, filename, f"{entity_name}是从{filename}中提取的实体。"))
+    results.extend(
+        _build_relationship_string(
+            entity_name,
+            filename,
+            f"{entity_name}是从{filename}中提取的实体。",
+        )
+        for entity_name in re.findall(entity_pattern, extracted_result)
+    )
 
     return results
 
@@ -254,7 +265,7 @@ async def extract_entities(
     image_path: str,
     feature_dir: str,
     knwoledge_graph_inst: BaseGraphStorage,
-) -> Union[BaseGraphStorage, None]:
+) -> BaseGraphStorage | None:
     llm_func = limit_async_func_call(16)(
         partial(multimodel_if_cache, hashing_kv=cache_storage)
     )
@@ -310,8 +321,8 @@ async def extract_entities(
 @dataclass
 class ImageEntityExtractor:
     extraction_func:   callable              = extract_entities
-    kv_storage_cls:    Type[BaseKVStorage]   = JsonKVStorage
-    graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
+    kv_storage_cls:    type[BaseKVStorage]   = JsonKVStorage
+    graph_storage_cls: type[BaseGraphStorage] = NetworkXStorage
 
     def __post_init__(self):
         self.llm_cache = self.kv_storage_cls(

@@ -17,7 +17,6 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
@@ -50,7 +49,7 @@ def _sanitize(name: str) -> str:
 
 @router.post("/")
 async def upload_documents(
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
     auth: AuthContext = Depends(get_current_user),
 ):
     """Upload documents into the authenticated user's workspace.

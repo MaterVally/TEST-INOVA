@@ -91,7 +91,6 @@ export default function UploadPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [activeStageIndex, setActiveStageIndex] = useState(0)
   const [globalProgress, setGlobalProgress] = useState(0)
-  const [lastCaseId, setLastCaseId] = useState<string | null>(null)
 
   // --- Handlers for Drag & Drop ---
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -172,8 +171,8 @@ export default function UploadPage() {
 
       try {
         const formData = new FormData()
-        formData.append('files', targetFile.file)  // backend expects "files" (plural)
-        const resp = await fetch('/api/upload/', {
+        formData.append('file', targetFile.file)
+        const resp = await fetch('http://localhost:8000/api/upload/', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token ?? ''}`,
@@ -186,13 +185,15 @@ export default function UploadPage() {
           uploadSuccess = true
           try {
             const resJson = await resp.json()
-            // Persist case_id so KnowledgeGraphPage and AIAssistantPage can use it
+            // Persist the case_id so KnowledgeGraphPage and AIAssistantPage
+            // can pick it up without any extra navigation step.
             if (resJson.case_id) {
-              try { localStorage.setItem('innova_last_case_id', resJson.case_id) } catch { /* ignore */ }
-              setLastCaseId(resJson.case_id)
+              localStorage.setItem('innova_active_case_id', resJson.case_id)
             }
-            if (resJson.knowledge_graph?.nodes) nodeCount = resJson.knowledge_graph.nodes
-            if (resJson.knowledge_graph?.edges) edgeCount = resJson.knowledge_graph.edges
+            // Pull real graph stats if the backend returned them
+            const kg = resJson.knowledge_graph ?? {}
+            if (kg.nodes) nodeCount = kg.nodes
+            if (kg.edges) edgeCount = kg.edges
           } catch {
             // Keep default counts if JSON payload lacks stats
           }
@@ -479,32 +480,17 @@ export default function UploadPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex flex-col gap-2 text-xs text-emerald-300"
+                  className="p-3.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-300"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-emerald-400" />
-                      MMKG Graph Synthesis Complete
-                    </span>
-                    <div className="flex items-center gap-4 font-mono">
-                      <span>Nodes: {totalNodes}</span>
-                      <span>Edges: {totalEdges}</span>
-                      <span>Format: GraphML</span>
-                    </div>
+                  <span className="font-semibold flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                    MMKG Graph Synthesis Complete
+                  </span>
+                  <div className="flex items-center gap-4 font-mono">
+                    <span>Nodes: {totalNodes}</span>
+                    <span>Edges: {totalEdges}</span>
+                    <span>Format: GraphML</span>
                   </div>
-                  {lastCaseId && (
-                    <div className="flex items-center gap-2 bg-emerald-950/40 rounded-lg px-3 py-2 border border-emerald-500/20">
-                      <span className="text-emerald-400 font-semibold shrink-0">Case ID:</span>
-                      <code className="font-mono text-emerald-200 flex-1 truncate">{lastCaseId}</code>
-                      <button
-                        type="button"
-                        onClick={() => navigator.clipboard.writeText(lastCaseId)}
-                        className="text-emerald-400 hover:text-white transition-colors shrink-0 underline text-[10px]"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  )}
                 </motion.div>
               )}
             </div>

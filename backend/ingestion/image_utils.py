@@ -21,14 +21,12 @@ import asyncio
 import base64
 import os
 import shutil
-from typing import Dict, Optional, Tuple
 
 from PIL import Image
 
 from ..core.prompt import PROMPTS
 from ..llm import get_mmllm_response, multimodel_if_cache, normalize_to_json
 from ..utils.base import logger
-
 
 # ---------------------------------------------------------------------------
 # compress_image_to_size
@@ -77,7 +75,7 @@ async def get_image_description(
     footnote: list,
     context: str,
     hashing_kv=None,
-) -> Tuple[str, bool]:
+) -> tuple[str, bool]:
     """
     Call the multimodal LLM to describe an image extracted from a document.
 
@@ -94,7 +92,7 @@ async def get_image_description(
         context=context,
     )
 
-    default_result: Dict = {"description": "No description.", "segmentation": "false"}
+    default_result: dict = {"description": "No description.", "segmentation": "false"}
 
     try:
         content = await asyncio.wait_for(
@@ -108,7 +106,7 @@ async def get_image_description(
             timeout=30.0,
         )
         result = normalize_to_json(content) or default_result
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning(f"⏱️ 生成描述超时: {image_path}")
         result = {
             "description": "Image description generation timed out.",
@@ -168,7 +166,7 @@ def describe_image_sync(image_path: str) -> str:
 def copy_image_to_working_dir(
     image_path: str,
     images_dir: str,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Copy *image_path* into *images_dir* (no-op if already there).
 
@@ -191,7 +189,7 @@ def copy_image_to_working_dir(
 # find_chunk_for_image
 # ---------------------------------------------------------------------------
 
-def find_chunk_for_image(text_chunks: dict, context: str) -> Optional[str]:
+def find_chunk_for_image(text_chunks: dict, context: str) -> str | None:
     """
     Find the text chunk whose content best overlaps with *context*.
 

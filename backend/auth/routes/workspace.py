@@ -16,14 +16,12 @@ from backend.auth.middleware.jwt_middleware import (
     AuthContext,
     get_current_user,
 )
-
 from backend.auth.models.workspace import (
-    WorkspaceCreateRequest,
-    WorkspaceResponse,
     MemberInviteRequest,
     MemberRoleChangeRequest,
+    WorkspaceCreateRequest,
+    WorkspaceResponse,
 )
-
 from backend.auth.rbac.engine import require_permission
 from backend.auth.rbac.permissions import Permission
 from backend.auth.services import workspace_service

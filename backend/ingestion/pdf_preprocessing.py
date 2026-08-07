@@ -2,19 +2,17 @@
 PDF ingestion: text chunking, PyMuPDF / MinerU parsing, image description.
 """
 import asyncio
-import json
 import os
-import re
-import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from io import BytesIO
-from typing import Callable, Dict, List, Optional, Type, Union, cast
 
 from PIL import Image
 from tqdm import tqdm
 
 from ..config import settings as parameter
+from ..storage.kv_storage import BaseKVStorage, JsonKVStorage
 from ..utils.base import (
     compute_mdhash_id,
     decode_tokens_by_tiktoken,
@@ -22,14 +20,11 @@ from ..utils.base import (
     load_json,
     logger,
 )
-from ..core.prompt import PROMPTS
-from ..storage.kv_storage import BaseKVStorage, JsonKVStorage, StorageNameSpace
 from .image_utils import (
     compress_image_to_size,
-    get_image_description,
     find_chunk_for_image,
+    get_image_description,
 )
-
 
 # ============================================================================
 # Text chunking
@@ -54,7 +49,7 @@ class TextChunking:
     chunk_func:                           Callable          = chunking_by_token_size
     chunk_token_size:                     int               = 1200
     chunk_overlap_token_size:             int               = 100
-    key_string_value_json_storage_cls:    Type[BaseKVStorage] = JsonKVStorage
+    key_string_value_json_storage_cls:    type[BaseKVStorage] = JsonKVStorage
     tiktoken_model_name:                  str               = "gpt-4o"
 
     def __post_init__(self):
@@ -157,7 +152,6 @@ class PdfChunking:
                 xref       = img_ref[0]
                 base_image = doc.extract_image(xref)
                 img_bytes  = base_image["image"]
-                img_ext    = base_image["ext"]
                 img_name   = f"image_{page_num + 1}_{img_index + 1}"
                 img_path   = os.path.join(images_dir, f"{img_name}.jpg")
 
@@ -198,7 +192,7 @@ class PdfChunking:
         # Run MinerU CLI
         result = subprocess.run(
             ["mineru", "-p", self.pdf_path, "-o", os.path.join(self.working_dir, pdf_name)],
-            capture_output=True, text=True
+            capture_output=True, text=True, check=False,
         )
         if result.returncode != 0:
             logger.warning(f"MinerU failed: {result.stderr}. Falling back to PyMuPDF.")

@@ -9,12 +9,12 @@ Requirements: 3.1–3.6, 4.1–4.5, 5.1–5.4
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from fastapi import HTTPException
 
-from backend.auth.rbac.permissions import Permission, ROLE_PERMISSIONS
+from backend.auth.rbac.permissions import ROLE_PERMISSIONS, Permission
 from backend.auth.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ async def _log_audit_event(
                 "event_type": event_type,
                 "user_id": user_id,
                 "workspace_id": workspace_id,
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
                 "source_ip": source_ip,
                 "detail": detail[:2000],
             }
@@ -125,7 +125,7 @@ async def create_workspace(owner_id: str, name: str) -> dict:
 
     supabase = await get_supabase_client()
     workspace_id = str(uuid4())
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     # ── 2. Insert workspace ───────────────────────────────────────────────────
     try:
@@ -174,7 +174,10 @@ async def create_workspace(owner_id: str, name: str) -> dict:
         )
         raise HTTPException(
             status_code=500,
-            detail={"error": "internal_error", "message": "Failed to initialise workspace membership"},
+            detail={
+                "error": "internal_error",
+                "message": "Failed to initialise workspace membership",
+            },
         ) from exc
 
     # ── 4. Audit log ─────────────────────────────────────────────────────────
@@ -339,7 +342,7 @@ async def delete_workspace(workspace_id: str, requesting_user_id: str) -> dict:
         )
 
     # ── 3. Soft-delete ────────────────────────────────────────────────────────
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     try:
         await supabase.from_("workspaces").update(
             {
@@ -453,7 +456,7 @@ async def invite_member(
         )
 
     # ── 4. Insert pending membership ──────────────────────────────────────────
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     member_id = str(uuid4())
     expires_at = (now + timedelta(hours=_INVITE_EXPIRY_HOURS)).isoformat()
 

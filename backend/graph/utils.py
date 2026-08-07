@@ -2,20 +2,19 @@
 Shared graph-construction helpers used by text2graph and img2graph.
 """
 from collections import Counter
-from typing import Union
 
+from ..config import settings as parameter
 from ..core.prompt import GRAPH_FIELD_SEP, PROMPTS
+from ..llm import model_if_cache
+from ..storage.graph_storage import BaseGraphStorage
 from ..utils.base import (
+    clean_str,
+    decode_tokens_by_tiktoken,
+    encode_string_by_tiktoken,
+    is_float_regex,
     logger,
     split_string_by_multi_markers,
-    clean_str,
-    encode_string_by_tiktoken,
-    decode_tokens_by_tiktoken,
-    is_float_regex,
 )
-from ..config import settings as parameter
-from ..storage.graph_storage import BaseGraphStorage
-from ..llm import model_if_cache
 
 
 async def _handle_single_entity_extraction(
@@ -29,12 +28,12 @@ async def _handle_single_entity_extraction(
         return None
     entity_type = clean_str(record_attributes[2].upper())
     entity_description = clean_str(record_attributes[3])
-    return dict(
-        entity_name=entity_name,
-        entity_type=entity_type,
-        description=entity_description,
-        source_id=chunk_key,
-    )
+    return {
+        "entity_name": entity_name,
+        "entity_type": entity_type,
+        "description": entity_description,
+        "source_id":   chunk_key,
+    }
 
 
 async def _handle_entity_relation_summary(
@@ -49,10 +48,10 @@ async def _handle_entity_relation_summary(
         return description
     prompt_template = PROMPTS["summarize_entity_descriptions"]
     use_description = decode_tokens_by_tiktoken(tokens[:llm_max_tokens])
-    context_base = dict(
-        entity_name=entity_or_relation_name,
-        description_list=use_description.split(GRAPH_FIELD_SEP),
-    )
+    context_base = {
+        "entity_name":      entity_or_relation_name,
+        "description_list": use_description.split(GRAPH_FIELD_SEP),
+    }
     user_prompt = prompt_template.format(**context_base)
     logger.debug(f"Trigger summary: {entity_or_relation_name}")
     return await use_llm_func(user_prompt, max_tokens=summary_max_tokens)
@@ -70,13 +69,13 @@ async def _handle_single_relationship_extraction(
     weight = (
         float(record_attributes[-1]) if is_float_regex(record_attributes[-1]) else 1.0
     )
-    return dict(
-        src_id=source,
-        tgt_id=target,
-        weight=weight,
-        description=edge_description,
-        source_id=chunk_key,
-    )
+    return {
+        "src_id":      source,
+        "tgt_id":      target,
+        "weight":      weight,
+        "description": edge_description,
+        "source_id":   chunk_key,
+    }
 
 
 async def _merge_nodes_then_upsert(
@@ -94,13 +93,12 @@ async def _merge_nodes_then_upsert(
             split_string_by_multi_markers(already_node["source_id"], [GRAPH_FIELD_SEP])
         )
         already_description.append(already_node["description"])
-    entity_type = sorted(
+    entity_type = max(
         Counter(
             [dp["entity_type"] for dp in nodes_data] + already_entitiy_types
         ).items(),
         key=lambda x: x[1],
-        reverse=True,
-    )[0][0]
+    )[0]
     description = GRAPH_FIELD_SEP.join(
         sorted(set([dp["description"] for dp in nodes_data] + already_description))
     )
@@ -108,7 +106,7 @@ async def _merge_nodes_then_upsert(
         set([dp["source_id"] for dp in nodes_data] + already_source_ids)
     )
     description = await _handle_entity_relation_summary(entity_name, description)
-    node_data = dict(entity_type=entity_type, description=description, source_id=source_id)
+    node_data = {"entity_type": entity_type, "description": description, "source_id": source_id}
     await knwoledge_graph_inst.upsert_node(entity_name, node_data=node_data)
     node_data["entity_name"] = entity_name
     return node_data
@@ -152,6 +150,12 @@ async def _merge_edges_then_upsert(
             )
     description = await _handle_entity_relation_summary((src_id, tgt_id), description)
     await knwoledge_graph_inst.upsert_edge(
-        src_id, tgt_id,
-        edge_data=dict(weight=weight, description=description, source_id=source_id, order=order),
+        src_id,
+        tgt_id,
+        edge_data={
+            "weight": weight,
+            "description": description,
+            "source_id": source_id,
+            "order": order,
+        },
     )

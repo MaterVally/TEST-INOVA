@@ -21,18 +21,17 @@ It only explains WHY the answer was produced,
 using retrieval context already computed by GraphRAGQuery.
 """
 
-from typing import Dict, List, Tuple
 
 
 class EvidenceEngine:
 
     def collect(
         self,
-        retrieval_context: Dict,
+        retrieval_context: dict,
         graph,
-        text_chunks: Dict,
-        image_data: Dict,
-    ) -> Dict:
+        text_chunks: dict,
+        image_data: dict,
+    ) -> dict:
         """
         Build an evidence package from pre-computed retrieval context.
 
@@ -61,7 +60,7 @@ class EvidenceEngine:
                "text_chunks": [...], "images": [...]}``
         """
 
-        similar_nodes: List[Tuple[str, float]] = retrieval_context.get(
+        similar_nodes: list[tuple[str, float]] = retrieval_context.get(
             "similar_nodes", []
         )
 
@@ -92,8 +91,8 @@ class EvidenceEngine:
                 "description": node.get("description", ""),
             })
 
-            for sid in node.get("source_id", "").split("<SEP>"):
-                sid = sid.strip()
+            for raw_sid in node.get("source_id", "").split("<SEP>"):
+                sid = raw_sid.strip()
                 if not sid or sid in visited_chunks:
                     continue
                 visited_chunks.add(sid)

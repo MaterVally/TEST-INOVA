@@ -3,12 +3,11 @@ Graph storage abstraction and NetworkX-backed implementation.
 """
 import os
 from dataclasses import dataclass
-from typing import Union
 
 import networkx as nx
 
-from ..utils.base import logger
 from ..config import settings as parameter
+from ..utils.base import logger
 from .kv_storage import StorageNameSpace
 
 
@@ -27,13 +26,13 @@ class BaseGraphStorage(StorageNameSpace):
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
         raise NotImplementedError
 
-    async def get_node(self, node_id: str) -> Union[dict, None]:
+    async def get_node(self, node_id: str) -> dict | None:
         raise NotImplementedError
 
-    async def get_edge(self, source_node_id: str, target_node_id: str) -> Union[dict, None]:
+    async def get_edge(self, source_node_id: str, target_node_id: str) -> dict | None:
         raise NotImplementedError
 
-    async def get_node_edges(self, source_node_id: str) -> Union[list[tuple[str, str]], None]:
+    async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
         raise NotImplementedError
 
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
@@ -90,7 +89,7 @@ class NetworkXStorage(BaseGraphStorage):
     async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
         return self._graph.has_edge(source_node_id, target_node_id)
 
-    async def get_node(self, node_id: str) -> Union[dict, None]:
+    async def get_node(self, node_id: str) -> dict | None:
         return self._graph.nodes.get(node_id)
 
     async def node_degree(self, node_id: str) -> int:
@@ -101,7 +100,7 @@ class NetworkXStorage(BaseGraphStorage):
         tgt_deg = self._graph.degree(tgt_id) if self._graph.has_node(tgt_id) else 0
         return src_deg + tgt_deg
 
-    async def get_edge(self, source_node_id: str, target_node_id: str) -> Union[dict, None]:
+    async def get_edge(self, source_node_id: str, target_node_id: str) -> dict | None:
         return self._graph.edges.get((source_node_id, target_node_id))
 
     async def get_node_edges(self, source_node_id: str):

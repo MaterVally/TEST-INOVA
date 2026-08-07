@@ -8,8 +8,8 @@ This module DOES NOT implement graph logic.
 It simply exposes graph information in a FastAPI-friendly way.
 """
 
-from fastapi import APIRouter, HTTPException
 import networkx as nx
+from fastapi import APIRouter, HTTPException
 
 from backend.config import settings
 
@@ -32,11 +32,11 @@ def _load_graph():
     try:
         return nx.read_graphml(graph_path)
 
-    except Exception:
+    except Exception as exc:
         raise HTTPException(
             status_code=404,
-            detail="Knowledge graph not found."
-        )
+            detail="Knowledge graph not found.",
+        ) from exc
 
 
 @router.get("/summary")

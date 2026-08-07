@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
@@ -274,7 +274,7 @@ async def update_profile(user_id: str, update: ProfileUpdateRequest) -> UserProf
         # Nothing to update — return current profile unchanged
         return await get_profile(user_id)
 
-    payload["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
+    payload["updated_at"] = datetime.now(tz=UTC).isoformat()
 
     # ── 3. Verify user exists before attempting update ────────────────────────
     supabase = await get_supabase_client()

@@ -1,7 +1,6 @@
 """
 Flask visualization server — serves the graph explorer UI and REST API.
 """
-import json
 import os
 import xml.etree.ElementTree as ET
 
@@ -16,7 +15,11 @@ CORS(app)
 _GRAPH_PATH = None
 
 
-def run_visualization_server(graph_path: str = None, host: str = "0.0.0.0", port: int = 5000):
+def run_visualization_server(
+    graph_path: str | None = None,
+    host: str = "0.0.0.0",
+    port: int = 5000,
+):
     global _GRAPH_PATH
     _GRAPH_PATH = graph_path or os.path.join(
         parameter.OUTPUT_DIR, f"{parameter.MMKG_NAME}.graphml"
@@ -84,19 +87,22 @@ def graph_content():
         nid   = node.get("id", "")
         ndata = {"id": nid}
         for d in node.findall("g:data", ns):
-            k = d.get("key")
-            if k == "d0": ndata["entity_type"]  = (d.text or "").strip('"')
-            if k == "d1": ndata["description"]  = d.text or ""
-            if k == "d2": ndata["source_id"]    = d.text or ""
+            if d.get("key") == "d0":
+                ndata["entity_type"] = (d.text or "").strip('"')
+            if d.get("key") == "d1":
+                ndata["description"] = d.text or ""
+            if d.get("key") == "d2":
+                ndata["source_id"]   = d.text or ""
         nodes_out.append(ndata)
 
     edges_out = []
     for edge in root.findall(".//g:edge", ns):
         edata = {"source": edge.get("source", ""), "target": edge.get("target", "")}
         for d in edge.findall("g:data", ns):
-            k = d.get("key")
-            if k == "d3": edata["weight"]      = d.text or ""
-            if k == "d4": edata["description"] = d.text or ""
+            if d.get("key") == "d3":
+                edata["weight"]      = d.text or ""
+            if d.get("key") == "d4":
+                edata["description"] = d.text or ""
         edges_out.append(edata)
 
     start = (page - 1) * page_size
@@ -123,8 +129,10 @@ def graph_search():
         if query in nid.lower():
             ndata = {"id": nid}
             for d in node.findall("g:data", ns):
-                if d.get("key") == "d0": ndata["entity_type"] = (d.text or "").strip('"')
-                if d.get("key") == "d1": ndata["description"] = d.text or ""
+                if d.get("key") == "d0":
+                    ndata["entity_type"] = (d.text or "").strip('"')
+                if d.get("key") == "d1":
+                    ndata["description"] = d.text or ""
             results.append(ndata)
         if len(results) >= 20:
             break

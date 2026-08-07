@@ -15,7 +15,6 @@ import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import List
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
@@ -55,7 +54,7 @@ def _sanitize_filename(name: str) -> str:
 
 @router.post("/")
 async def upload_documents(
-    files: List[UploadFile] = File(...),
+    files: list[UploadFile] = File(...),
 ):
     """
     Upload one or more enterprise documents.

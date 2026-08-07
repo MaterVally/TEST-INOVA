@@ -3,15 +3,17 @@ Key-value storage abstractions and JSON-backed implementation.
 """
 import os
 from dataclasses import dataclass
-from typing import Generic, TypedDict, TypeVar, Union
+from typing import Generic, TypedDict, TypeVar
 
-from ..utils.base import logger, load_json, write_json
 from ..config import settings as parameter
+from ..utils.base import load_json, logger, write_json
 
-TextChunkSchema = TypedDict(
-    "TextChunkSchema",
-    {"tokens": int, "content": str, "full_doc_id": str, "chunk_order_index": int},
-)
+
+class TextChunkSchema(TypedDict):
+    tokens: int
+    content: str
+    full_doc_id: str
+    chunk_order_index: int
 
 T = TypeVar("T")
 
@@ -34,12 +36,12 @@ class BaseKVStorage(Generic[T], StorageNameSpace):
     async def all_keys(self) -> list[str]:
         raise NotImplementedError
 
-    async def get_by_id(self, id: str) -> Union[T, None]:
+    async def get_by_id(self, id: str) -> T | None:
         raise NotImplementedError
 
     async def get_by_ids(
-        self, ids: list[str], fields: Union[set[str], None] = None
-    ) -> list[Union[T, None]]:
+        self, ids: list[str], fields: set[str] | None = None
+    ) -> list[T | None]:
         raise NotImplementedError
 
     async def filter_keys(self, data: list[str]) -> set[str]:
@@ -70,7 +72,7 @@ class JsonKVStorage(BaseKVStorage):
     async def get_by_id(self, id: str):
         return self._data.get(id, None)
 
-    async def get_by_ids(self, ids: list[str], fields: set[str] = None):
+    async def get_by_ids(self, ids: list[str], fields: set[str] | None = None):
         if fields is None:
             return [self._data.get(id) for id in ids]
         return [

@@ -8,27 +8,32 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial
-from typing import Type, Union, cast
+from typing import cast
 
 from tqdm import tqdm
 
+from ..config import settings as parameter
+from ..core.prompt import PROMPTS
+from ..llm import model_if_cache
+from ..storage.graph_storage import BaseGraphStorage, NetworkXStorage
+from ..storage.kv_storage import (
+    BaseKVStorage,
+    JsonKVStorage,
+    StorageNameSpace,
+    TextChunkSchema,
+)
 from ..utils.base import (
+    limit_async_func_call,
     logger,
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
-    limit_async_func_call,
 )
 from .utils import (
     _handle_single_entity_extraction,
     _handle_single_relationship_extraction,
-    _merge_nodes_then_upsert,
     _merge_edges_then_upsert,
+    _merge_nodes_then_upsert,
 )
-from ..llm import model_if_cache
-from ..core.prompt import PROMPTS
-from ..storage.kv_storage import BaseKVStorage, JsonKVStorage, StorageNameSpace, TextChunkSchema
-from ..storage.graph_storage import BaseGraphStorage, NetworkXStorage
-from ..config import settings as parameter
 
 TUPLE_DELIMITER      = PROMPTS["DEFAULT_TUPLE_DELIMITER"]
 RECORD_DELIMITER     = PROMPTS["DEFAULT_RECORD_DELIMITER"]
@@ -40,7 +45,7 @@ async def extract_entities(
     cache_storage: BaseKVStorage,
     chunks: dict[str, TextChunkSchema],
     knwoledge_graph_inst: BaseGraphStorage,
-) -> Union[BaseGraphStorage, None]:
+) -> BaseGraphStorage | None:
     output_path = os.path.join(parameter.WORKING_DIR, "kv_store_chunk_knowledge_graph.json")
 
     llm_func = limit_async_func_call(16)(
@@ -105,10 +110,16 @@ async def extract_entities(
         chunk_kg_info[chunk_index] = chunk_result
         return dict(nodes), dict(edges)
 
-    tasks   = [process_chunk(c) for c in ordered_chunks]
-    results = []
-    for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="📝 文本实体提取", unit="块"):
-        results.append(await coro)
+    tasks = [process_chunk(chunk) for chunk in ordered_chunks]
+    results = [
+        await coro
+        for coro in tqdm(
+            asyncio.as_completed(tasks),
+            total=len(tasks),
+            desc="📝 文本实体提取",
+            unit="块",
+        )
+    ]
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(chunk_kg_info, f, ensure_ascii=False, indent=2)
@@ -137,8 +148,8 @@ async def extract_entities(
 @dataclass
 class TextEntityExtractor:
     extraction_func:   callable              = extract_entities
-    kv_storage_cls:    Type[BaseKVStorage]   = JsonKVStorage
-    graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
+    kv_storage_cls:    type[BaseKVStorage]   = JsonKVStorage
+    graph_storage_cls: type[BaseGraphStorage] = NetworkXStorage
 
     def __post_init__(self):
         self.llm_cache = self.kv_storage_cls(

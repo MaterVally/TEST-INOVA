@@ -10,7 +10,7 @@ Requirements: 1.1–1.5, 2.1–2.4, 4.5–4.8, 6.1–6.3
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 

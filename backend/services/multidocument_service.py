@@ -21,7 +21,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import List
 
 import networkx as nx
 
@@ -42,7 +41,7 @@ class MultiDocumentService:
 
     async def process_documents(
         self,
-        file_paths: List[str],
+        file_paths: list[str],
         case_id: str = "",
         file_results: list | None = None,
     ) -> dict:
@@ -101,7 +100,7 @@ class MultiDocumentService:
 
     async def process_concurrent(
         self,
-        file_paths: List[str],
+        file_paths: list[str],
         case_id: str = "",
         max_workers: int = 3,
     ) -> dict:

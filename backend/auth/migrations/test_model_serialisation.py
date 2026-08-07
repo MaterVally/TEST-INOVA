@@ -16,9 +16,9 @@ Or from within this directory:
 """
 
 import json
-import sys
 import os
-from datetime import timezone
+import sys
+from datetime import UTC
 
 # ---------------------------------------------------------------------------
 # Path setup — import model files directly via importlib to bypass
@@ -81,7 +81,7 @@ _MEMBERSHIP_STATUSES = ["active", "pending", "removed"]
 
 _uuid_str = st.uuids().map(str)
 _nullable_uuid_str = st.none() | _uuid_str
-_utc_datetime = st.datetimes(timezones=st.just(timezone.utc))
+_utc_datetime = st.datetimes(timezones=st.just(UTC))
 _nullable_utc_datetime = st.none() | _utc_datetime
 
 

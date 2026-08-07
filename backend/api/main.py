@@ -6,17 +6,17 @@ Hackathon Prototype
 """
 
 import logging
+import os
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-import os
 
 # Load environment variables
 load_dotenv()
 
 from backend.config import ALLOWED_ORIGINS, SUPABASE_JWT_SECRET
-from backend.auth.middleware.jwt_middleware import get_current_user
+from backend.auth.middleware.jwt_middleware import get_current_user, _get_jwks
 
 from backend.api.routes.cases import router as cases_router
 # Workspace-aware replacements (user-scoped paths — no global data folders)
@@ -31,7 +31,6 @@ from backend.auth.routes.profile import router as profile_router
 from backend.auth.routes.workspace import router as workspace_router
 from backend.auth.routes.audit import router as audit_router
 from backend.api.routes.storage import router as storage_router
-from backend.auth.middleware.jwt_middleware import _get_jwks
 
 logger = logging.getLogger(__name__)
 
@@ -87,20 +86,15 @@ app.add_middleware(
 # Routers — protected (JWT required)
 # ------------------------------
 
-# Workspace-aware routes (user-scoped, JWT required)
-# These replace the global upload/query/graph/report routers for all
-# authenticated requests. The old routers are kept imported above for
-# backward-compatibility with CLI scripts but are NOT registered.
 app.include_router(ws_upload_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_query_router,  prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_graph_router,  prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_report_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(cases_router,     prefix="/api", dependencies=[Depends(get_current_user)])
-# global_graph_router mounted at /api/graph-global to avoid shadowing ws_graph_router at /api/graph
 app.include_router(global_graph_router, prefix="/api/graph-global", dependencies=[Depends(get_current_user)])
 
 # ------------------------------
-# Routers — auth & workspace (endpoints handle their own auth internally)
+# Routers — auth & workspace
 # ------------------------------
 
 app.include_router(auth_router, prefix="/api/auth")
@@ -111,7 +105,7 @@ app.include_router(storage_router, prefix="/api", dependencies=[Depends(get_curr
 
 
 # ------------------------------
-# Startup: pre-warm JWKS cache so first request never 503s
+# Startup: pre-warm JWKS cache
 # ------------------------------
 
 @app.on_event("startup")
@@ -138,7 +132,6 @@ async def root():
 
 @app.get("/health")
 async def health():
-
     return {
         "status": "healthy",
         "openai_key_loaded": bool(os.getenv("LLM_API_KEY")),

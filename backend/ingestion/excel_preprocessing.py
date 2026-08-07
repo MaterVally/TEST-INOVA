@@ -22,9 +22,6 @@ Compatible with:
 
 from __future__ import annotations
 
-import os
-from typing import Dict, List, Tuple
-
 from openpyxl import load_workbook
 
 from ..utils.base import logger
@@ -47,7 +44,7 @@ class ExcelChunking:
 
     async def process(
         self
-    ) -> Tuple[List[str], List[Dict]]:
+    ) -> tuple[list[str], list[dict]]:
 
         logger.info("📊 Processing Excel workbook...")
 
@@ -66,7 +63,7 @@ class ExcelChunking:
     # Extract workbook contents
     # ---------------------------------------------------------
 
-    def _extract_text(self) -> List[str]:
+    def _extract_text(self) -> list[str]:
 
         workbook = load_workbook(
             self.excel_path,
@@ -90,10 +87,10 @@ class ExcelChunking:
                     if value is None:
                         continue
 
-                    value = str(value).strip()
+                    clean_value = str(value).strip()
 
-                    if value:
-                        values.append(value)
+                    if clean_value:
+                        values.append(clean_value)
 
                 if values:
 

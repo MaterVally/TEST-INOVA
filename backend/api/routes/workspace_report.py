@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -55,12 +55,12 @@ async def generate_report(
         result = await svc.query(request.question, top_k=request.top_k)
         graph_summary = svc._graph_summary()
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     report = {
-        "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "generated_at": datetime.now(tz=UTC).isoformat(),
         "user_id":      auth.user_id,
         "case_id":      request.case_id,
         "knowledge_graph": {
@@ -106,6 +106,6 @@ async def get_report(
     try:
         report = json.loads(ws.report_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Could not read report: {exc}")
+        raise HTTPException(status_code=500, detail=f"Could not read report: {exc}") from exc
 
     return {"success": True, "report": report}
