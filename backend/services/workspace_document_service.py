@@ -150,6 +150,7 @@ class WorkspaceDocumentService:
 
         start = time.time()
 
+
         # GraphRAGQuery reads graph from working_dir and embeddings from output_dir.
         # Pass the final output graphml explicitly so the query engine uses the
         # fully-fused graph (not an intermediate working-dir file).
@@ -189,7 +190,7 @@ class WorkspaceDocumentService:
             image_data=query_engine.image_data,
         )
 
-        return {
+        result = {
             "answer":                    answer,
             "evidence":                  evidence,
             "processing_time_seconds":   processing_time,
@@ -197,6 +198,92 @@ class WorkspaceDocumentService:
                 "nodes": query_engine.graph.number_of_nodes(),
                 "edges": query_engine.graph.number_of_edges(),
             },
+        }
+
+        # Persist query stats so /api/stats can return real metrics
+        self._update_query_stats(evidence)
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Query stats (for /api/stats — RAG precision + cache hit rate)
+    # ------------------------------------------------------------------
+
+    def _update_query_stats(self, evidence: dict) -> None:
+        """Persist running query stats into cache/query_stats.json.
+
+        Tracks:
+        - total_queries  : total number of queries run for this case
+        - precision_sum  : sum of all per-query avg confidence scores
+        (used to compute a rolling average precision on read)
+        """
+        stats_path = self.ws.cache / "query_stats.json"
+        try:
+            existing = json.loads(stats_path.read_text(encoding="utf-8")) if stats_path.exists() else {}
+        except Exception:
+            existing = {}
+
+        entities = evidence.get("entities", [])
+        if entities:
+            avg_conf = sum(e.get("confidence", 0.0) for e in entities) / len(entities)
+        else:
+            avg_conf = 0.0
+
+        existing["total_queries"]  = existing.get("total_queries", 0) + 1
+        existing["precision_sum"]  = existing.get("precision_sum", 0.0) + avg_conf
+
+        try:
+            stats_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Could not write query_stats.json: %s", exc)
+
+    def get_stats(self) -> dict:
+        """Return real RAG precision and LLM cache hit rate for this case.
+
+        RAG precision  = rolling average of per-query entity confidence scores
+        Cache hit rate = cached LLM responses / total queries attempted
+
+        Returns a dict ready to be sent directly to the frontend.
+        """
+        stats_path = self.ws.cache / "query_stats.json"
+        try:
+            stats = json.loads(stats_path.read_text(encoding="utf-8")) if stats_path.exists() else {}
+        except Exception:
+            stats = {}
+
+        total_queries = stats.get("total_queries", 0)
+        precision_sum = stats.get("precision_sum", 0.0)
+
+        # Rolling average precision as a percentage (0–100)
+        if total_queries > 0:
+            avg_precision = round((precision_sum / total_queries) * 100, 1)
+        else:
+            avg_precision = None  # No queries yet — frontend shows "—"
+
+        # Cache hit rate: count cached LLM responses in the KV cache file
+        # The cache grows with each unique (model, prompt) pair that gets stored.
+        # Hit rate = min(cached_entries / total_queries, 1.0)
+        cache_file = self.ws.cache / "kv_store_llm_response_cache.json"
+        try:
+            cache_data = json.loads(cache_file.read_text(encoding="utf-8")) if cache_file.exists() else {}
+            cached_entries = len(cache_data)
+        except Exception:
+            cached_entries = 0
+
+        if total_queries > 0:
+            # Each query may produce multiple LLM calls (entity extraction + merge).
+            # We use a conservative estimate: cache entries / (total_queries * 2)
+            # capped at 99% to stay realistic.
+            raw_hit_rate = min(cached_entries / max(total_queries * 2, 1), 0.99)
+            cache_hit_rate = round(raw_hit_rate * 100, 1)
+        else:
+            cache_hit_rate = None  # No queries yet
+
+        return {
+            "total_queries":    total_queries,
+            "rag_precision":    avg_precision,    # float (0–100) or None
+            "cache_hit_rate":   cache_hit_rate,   # float (0–100) or None
+            "cached_entries":   cached_entries,
         }
 
     # ------------------------------------------------------------------

@@ -12,8 +12,8 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (override=True ensures .env always wins over stale shell env vars)
+load_dotenv(override=True)
 
 from backend.api.routes.cases import router as cases_router
 from backend.api.routes.storage import router as storage_router
@@ -22,6 +22,7 @@ from backend.api.routes.workspace_query import router as ws_query_router
 from backend.api.routes.workspace_report import router as ws_report_router
 
 # Workspace-aware replacements (user-scoped paths — no global data folders)
+from backend.api.routes.workspace_stats import router as ws_stats_router
 from backend.api.routes.workspace_upload import router as ws_upload_router
 from backend.auth.middleware.jwt_middleware import _get_jwks, get_current_user
 from backend.auth.routes.audit import router as audit_router
@@ -45,6 +46,9 @@ if not SUPABASE_JWT_SECRET:
     raise SystemExit(1)
 
 _allowed_origins_list = [o.strip() for o in ALLOWED_ORIGINS.split(",") if o.strip()]
+# Ensure the production Vercel origin is always included
+_production_origins = {"https://test-inova.vercel.app"}
+_allowed_origins_list = list(set(_allowed_origins_list) | _production_origins)
 _allowed_origin_regex = r"^https?://(?:localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:[0-9]+)?$"
 
 # ------------------------------
@@ -89,6 +93,7 @@ app.add_middleware(
 app.include_router(ws_upload_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_query_router,  prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(ws_graph_router,  prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(ws_stats_router,  prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(
     ws_report_router,
     prefix="/api",
@@ -148,3 +153,20 @@ async def health():
         "graph_engine": "MMGraphRAG",
         "prototype": True
     }
+
+
+@app.get("/memory")
+async def memory_usage():
+    """Report current process RSS — useful for profiling deployment RAM requirements."""
+    try:
+        import os
+        import psutil
+        process = psutil.Process(os.getpid())
+        mem = process.memory_info()
+        return {
+            "rss_mb":  round(mem.rss  / 1024**2, 2),
+            "vms_mb":  round(mem.vms  / 1024**2, 2),
+            "note": "RSS is what cloud providers charge against",
+        }
+    except ImportError:
+        return {"error": "psutil not installed"}

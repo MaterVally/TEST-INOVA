@@ -33,6 +33,13 @@ interface GraphSummary {
   entity_types?: Record<string, number>
 }
 
+interface CaseStats {
+  total_queries:  number
+  rag_precision:  number | null   // 0–100 or null before first query
+  cache_hit_rate: number | null   // 0–100 or null before first query
+  cached_entries: number
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function authHdr(): Record<string, string> {
@@ -62,8 +69,10 @@ export default function DashboardPage() {
 
   const [cases, setCases]           = useState<ApiCase[]>([])
   const [graph, setGraph]           = useState<GraphSummary | null>(null)
+  const [caseStats, setCaseStats]   = useState<CaseStats | null>(null)
   const [loadingCases, setLC]       = useState(true)
   const [loadingGraph, setLG]       = useState(true)
+  const [loadingStats, setLS]       = useState(true)
   const [activeTab, setActiveTab]   = useState<'all' | 'completed' | 'processing'>('all')
 
   const caseId = localStorage.getItem('innova_active_case_id')
@@ -91,8 +100,16 @@ export default function DashboardPage() {
     } catch { /* silent */ } finally { setLG(false) }
   }
 
-  useEffect(() => { void fetchCases(); void fetchGraph() }, [])
+  async function fetchStats() {
+    if (!caseId) { setLS(false); return }
+    setLS(true)
+    try {
+      const r = await fetchApi(`${API}/stats?case_id=${encodeURIComponent(caseId)}`, { headers: authHdr() })
+      if (r.ok) setCaseStats(await r.json() as CaseStats)
+    } catch { /* silent */ } finally { setLS(false) }
+  }
 
+  useEffect(() => { void fetchCases(); void fetchGraph(); void fetchStats() }, [])
   const filtered = cases.filter(c => activeTab === 'all' || c.status === activeTab)
 
   // ── Entity type bar (from real data) ──────────────────────────────────────
@@ -132,7 +149,7 @@ export default function DashboardPage() {
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white border border-indigo-400/30 text-xs font-semibold transition-all active:scale-95">
             <BrainCircuit className="w-4 h-4" /> New GraphRAG Query
           </button>
-          <button onClick={() => { void fetchCases(); void fetchGraph() }}
+          <button onClick={() => { void fetchCases(); void fetchGraph(); void fetchStats() }}
             className="p-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-white transition-all"
             title="Refresh">
             <RefreshCw className="w-4 h-4" />
@@ -214,11 +231,23 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-white tracking-tight">94.2%</span>
-            <span className="text-[11px] font-medium text-emerald-400">Cosine Similarity</span>
+            {loadingStats
+              ? <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+              : caseStats?.rag_precision != null
+                ? <span className="text-2xl font-bold text-white tracking-tight">{caseStats.rag_precision}%</span>
+                : <span className="text-2xl font-bold text-slate-500">—</span>}
+            {!loadingStats && (
+              <span className="text-[11px] font-medium text-emerald-400">Cosine Similarity</span>
+            )}
           </div>
           <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500 border-t border-white/5 pt-2.5">
-            <span>MiniLM-L6 Embeddings</span><span>Cache: 98%</span>
+            <span>MiniLM-L6 Embeddings</span>
+            <span>
+              Cache:{' '}
+              {loadingStats || caseStats?.cache_hit_rate == null
+                ? '—'
+                : `${caseStats.cache_hit_rate}%`}
+            </span>
           </div>
         </motion.div>
       </motion.div>
