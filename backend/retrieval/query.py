@@ -44,7 +44,7 @@ class GraphRAGQuery:
         if os.path.exists(self.embedding_path):
             self.embeddings = np.load(self.embedding_path)
         else:
-            logger.info("🔄 未找到嵌入，正在构建...")
+            logger.info("🔄 No embeddings found, building now...")
             self.embeddings = self._build_embeddings()
             np.save(self.embedding_path, self.embeddings)
 

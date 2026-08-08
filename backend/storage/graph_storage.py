@@ -53,7 +53,7 @@ class NetworkXStorage(BaseGraphStorage):
 
     @staticmethod
     def write_nx_graph(graph: nx.Graph, file_name: str):
-        logger.info(f"📊 写入图谱: {len(graph.nodes())} 个节点, {len(graph.edges())} 条边")
+        logger.info(f"📊 Writing graph: {len(graph.nodes())} nodes, {len(graph.edges())} edges")
         nx.write_graphml(graph, file_name)
 
     @staticmethod
@@ -74,9 +74,9 @@ class NetworkXStorage(BaseGraphStorage):
         preloaded_graph = NetworkXStorage.load_nx_graph(self._graphml_xml_file)
         if preloaded_graph is not None:
             logger.info(
-                f"📥 已加载图谱: {self._graphml_xml_file}, "
-                f"{len(preloaded_graph.nodes())} 个节点, "
-                f"{len(preloaded_graph.edges())} 条边"
+                f"📥 Graph loaded: {self._graphml_xml_file}, "
+                f"{len(preloaded_graph.nodes())} nodes, "
+                f"{len(preloaded_graph.edges())} edges"
             )
         self._graph = preloaded_graph or nx.Graph()
 

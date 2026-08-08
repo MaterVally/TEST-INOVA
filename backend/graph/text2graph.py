@@ -117,8 +117,8 @@ async def extract_entities(
         for coro in tqdm(
             asyncio.as_completed(tasks),
             total=len(tasks),
-            desc="📝 文本实体提取",
-            unit="块",
+            desc="📝 Text entity extraction",
+            unit="chunk",
         )
     ]
 
@@ -141,7 +141,7 @@ async def extract_entities(
     ])
 
     if not entities_data:
-        logger.warning("未提取到任何实体")
+        logger.warning("No entities extracted")
         return None
     return knwoledge_graph_inst
 
@@ -166,13 +166,13 @@ class TextEntityExtractor:
 
     async def text_entity_extraction(self, chunks: dict):
         try:
-            logger.info("🔍 正在提取实体...")
+            logger.info("🔍 Extracting entities...")
             result = await self.extraction_func(
                 self.llm_cache, chunks, knwoledge_graph_inst=self.graph,
                 working_dir=self.working_dir,
             )
             if result is None:
-                logger.warning("未找到新实体")
+                logger.warning("No new entities found")
             else:
                 self.graph = result
         finally:

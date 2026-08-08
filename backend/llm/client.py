@@ -209,7 +209,7 @@ def normalize_to_json(output: str) -> dict | None:
         output = match.group(1)
     match = re.search(r"\{.*\}", output, re.DOTALL)
     if not match:
-        logger.debug(f"未找到 JSON 对象: {output[:100]}...")
+        logger.debug(f"No JSON object found: {output[:100]}...")
         return None
     json_str = match.group(0)
     try:
@@ -225,7 +225,7 @@ def normalize_to_json(output: str) -> dict | None:
     try:
         return ast.literal_eval(json_str)
     except (ValueError, SyntaxError) as e:
-        logger.debug(f"JSON解码失败: {e}")
+        logger.debug(f"JSON decode failed: {e}")
         return None
 
 
@@ -233,7 +233,7 @@ def normalize_to_json_list(output: str) -> list[Any]:
     cleaned = output.replace('\\"', '"').strip()
     match = re.search(r"\[\s*(\{.*?\})*?\s*]", cleaned, re.DOTALL)
     if not match:
-        logger.warning("未找到有效的JSON列表片段")
+        logger.warning("No valid JSON list fragment found")
         return []
     json_str = match.group(0)
     json_str = re.sub(r",\s*]", "]", json_str)
@@ -243,7 +243,7 @@ def normalize_to_json_list(output: str) -> list[Any]:
         if isinstance(data, list):
             return data
     except json.JSONDecodeError:
-        logger.warning("完整列表解析失败，尝试逐项解析...")
+        logger.warning("Full list parse failed, attempting item-by-item parsing...")
     items = []
     for item_match in re.finditer(r"\{.*?\}", json_str, re.DOTALL):
         try:

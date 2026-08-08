@@ -51,7 +51,7 @@ def compress_image_to_size(
         input_image.save(output_path, quality=quality)
     if os.path.getsize(output_path) <= target_bytes:
         return True
-    logger.warning("⚠️ 无法将图片压缩到目标大小以内")
+    logger.warning("⚠️ Unable to compress image to target size")
     return False
 
 
@@ -106,13 +106,13 @@ async def get_image_description(
         )
         result = normalize_to_json(content) or default_result
     except TimeoutError:
-        logger.warning(f"⏱️ 生成描述超时: {image_path}")
+        logger.warning(f"⏱️ Image description timed out: {image_path}")
         result = {
             "description": "Image description generation timed out.",
             "segmentation": "false",
         }
     except Exception as e:
-        logger.error(f"❌ 生成描述失败 {image_path}: {e}")
+        logger.error(f"❌ Image description generation failed {image_path}: {e}")
         result = {
             "description": "Image description generation failed.",
             "segmentation": "false",

@@ -86,7 +86,7 @@ def _sanitize_embeddings(embeddings: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     zero_mask = (norms < 1e-8)
     if zero_mask.any():
-        logger.warning(f"⚠️ 发现 {zero_mask.sum()} 个零/接近零向量嵌入")
+        logger.warning(f"⚠️ Found {zero_mask.sum()} zero/near-zero vector embeddings")
         embeddings[zero_mask.flatten()] = np.random.normal(0, 1e-6, size=(zero_mask.sum(), embeddings.shape[1]))
         norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     normalized = embeddings / np.maximum(norms, 1e-8)
@@ -132,7 +132,7 @@ def _compute_spectral_labels(embeddings, entity_names, relationships):
     try:
         eigvals, eigvecs = np.linalg.eigh(laplacian_matrix)
     except np.linalg.LinAlgError:
-        logger.warning("⚠️ 拉普拉斯矩阵特征分解失败，回退到普通eig")
+        logger.warning("⚠️ Laplacian matrix eigen-decomposition failed, falling back to eig")
         eigvals, eigvecs = np.linalg.eig(laplacian_matrix)
 
     eigvals = np.real(eigvals)
@@ -283,7 +283,7 @@ def extract_image_entities(img_entity_name, working_dir: str | None = None):
     base = working_dir or parameter.WORKING_DIR
     path = os.path.join(base, f"images/{img_entity_name}/graph_{img_entity_name}_entity_relation.graphml")
     if not os.path.exists(path):
-        logger.warning(f"⚠️  未找到GraphML文件: {path}")
+        logger.warning(f"⚠️  GraphML file not found: {path}")
         return []
     tree = ET.parse(path)
     root = tree.getroot()
@@ -372,7 +372,7 @@ def image_knowledge_graph_update(enhanced_path, image_entity_name, working_dir: 
     possible_matches = get_possible_entities_image_clustering(entity_desc, nearby_entities, nearby_rels)
     matched_name     = judge_image_entity_alignment(entity_name, entity_desc, possible_matches, nearby_chunks)
     if not matched_name or not matched_name.strip():
-        logger.warning(f"⚠️  未能匹配图像实体: {entity_name}")
+        logger.warning(f"⚠️  Could not match image entity: {entity_name}")
         return enhanced_path
 
     matched_normalized = matched_name.strip().replace(" ", "").replace("\\", "").lower()
@@ -383,7 +383,7 @@ def image_knowledge_graph_update(enhanced_path, image_entity_name, working_dir: 
             source_node = node
             break
     if source_node is None:
-        logger.warning("未找到ORI_IMG节点")
+        logger.warning("ORI_IMG node not found")
         return enhanced_path
 
     edges = list(G.edges(data=True))
@@ -418,7 +418,7 @@ def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_enti
     image_graph  = nx.read_graphml(image_graph_path)
     text_graph   = nx.read_graphml(text_graph_path)
     if image_graph is None or text_graph is None:
-        logger.error("❌ 加载图谱失败")
+        logger.error("❌ Failed to load graphs")
         return text_graph_path
     merged = nx.compose(image_graph, text_graph)
     for entity_info in aligned_entities:
@@ -456,7 +456,7 @@ def merge_graphs(image_graph_path, text_graph_path, aligned_entities, image_enti
         if new_name != target:
             merged = nx.relabel_nodes(merged, {target: new_name})
     nx.write_graphml(merged, merged_path)
-    logger.info(f"🔗 图谱融合完成: {merged_path}")
+    logger.info(f"🔗 Graph fusion complete: {merged_path}")
     return merged_path
 
 
@@ -479,7 +479,7 @@ async def fusion(img_ids: list[str], working_dir: str | None = None) -> str:
     graph_path = os.path.join(base, "graph_chunk_entity_relation.graphml")
     if not img_ids:
         return graph_path
-    for image_name in tqdm(img_ids, desc="🔗 图谱融合", unit="张"):
+    for image_name in tqdm(img_ids, desc="🔗 Graph fusion", unit="image"):
         merged_path = os.path.join(base, f"graph_merged_{image_name}.graphml")
         if os.path.exists(merged_path):
             graph_path = merged_path

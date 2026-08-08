@@ -70,9 +70,9 @@ class TextChunking:
             existing_doc_keys = await self.full_docs.filter_keys(full_doc_keys)
             new_docs_to_insert = {k: v for k, v in new_docs.items() if k in existing_doc_keys}
             if not new_docs_to_insert:
-                logger.warning("所有文档已存在")
+                logger.warning("All documents already exist")
                 return
-            logger.info(f"📝 插入新文档: {len(new_docs_to_insert)} 篇")
+            logger.info(f"📝 Inserting new documents: {len(new_docs_to_insert)}")
             inserting_chunks = {}
             for doc_key, doc in new_docs_to_insert.items():
                 chunks = self.chunk_func(
@@ -87,9 +87,9 @@ class TextChunking:
             missing_chunk_keys = await self.text_chunks.filter_keys(list(inserting_chunks.keys()))
             final_chunks = {k: v for k, v in inserting_chunks.items() if k in missing_chunk_keys}
             if not final_chunks:
-                logger.warning("所有文本块已存在")
+                logger.warning("All text chunks already exist")
                 return
-            logger.info(f"📄 插入新文本块: {len(final_chunks)} 个")
+            logger.info(f"📄 Inserting new text chunks: {len(final_chunks)}")
             await self.full_docs.upsert(new_docs_to_insert)
             await self.text_chunks.upsert(final_chunks)
         finally:
@@ -120,9 +120,9 @@ class PdfChunking:
 
     async def process(self):
         if self.use_mineru and self._mineru_available():
-            logger.info("📄 使用 MinerU 解析 PDF")
+            logger.info("📄 Using MinerU to parse PDF")
             return await self._process_mineru()
-        logger.info("📄 使用 PyMuPDF 解析 PDF")
+        logger.info("📄 Using PyMuPDF to parse PDF")
         return await self._process_pymupdf()
 
     def _mineru_available(self):
@@ -143,7 +143,7 @@ class PdfChunking:
         text_chunks_all = load_json(
             os.path.join(self.working_dir, "kv_store_text_chunks.json")) or {}
 
-        for page_num, page in enumerate(tqdm(doc, desc="📖 解析页面", unit="页")):
+        for page_num, page in enumerate(tqdm(doc, desc="📖 Parsing pages", unit="page")):
             # Extract text
             page_text = page.get_text("text")
             if page_text.strip():
@@ -222,7 +222,7 @@ class PdfChunking:
             images_dir = os.path.join(self.working_dir, "images")
             os.makedirs(images_dir, exist_ok=True)
 
-            for idx, item in enumerate(tqdm(content_list, desc="🖼️ 处理图像", unit="个")):
+            for idx, item in enumerate(tqdm(content_list, desc="🖼️ Processing images", unit="image")):
                 if item.get("type") != "image":
                     continue
                 img_path_raw = item.get("img_path", "")

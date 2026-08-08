@@ -61,7 +61,7 @@ class JsonKVStorage(BaseKVStorage):
         working_dir = self.storage_dir or parameter.WORKING_DIR
         self._file_name = os.path.join(working_dir, f"kv_store_{self.namespace}.json")
         self._data = load_json(self._file_name) or {}
-        logger.info(f"💾 加载 {self.namespace}：{len(self._data)} 条数据")
+        logger.info(f"💾 Loaded {self.namespace}: {len(self._data)} entries")
 
     async def all_keys(self) -> list[str]:
         return list(self._data.keys())

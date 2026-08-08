@@ -44,7 +44,7 @@ os.environ["CACHE_PATH"] = _cache_path
 _PDF_EXTS   = {".pdf"}
 _DOCX_EXTS  = {".docx"}
 _EXCEL_EXTS = {".xlsx", ".xls"}
-_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac"}
+_AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".flac", ".ogg"}
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
 
 _SUPPORTED_EXTS = _PDF_EXTS | _DOCX_EXTS | _EXCEL_EXTS | _AUDIO_EXTS | _IMAGE_EXTS
@@ -110,7 +110,7 @@ class MMKGBuilder:
 
     async def index(self, file_path: str | None = None):
         file_path = file_path or self.file_path
-        logger.info(f"📂 开始处理: {file_path}")
+        logger.info(f"📂 Starting processing: {file_path}")
 
         await self._step_preprocessing(file_path)
         await self._step_text_extraction()
@@ -119,7 +119,7 @@ class MMKGBuilder:
         self._step_save_output()
         self._step_generate_report()
 
-        logger.info("✅ 知识图谱构建完成")
+        logger.info("✅ Knowledge graph build complete")
 
     # ------------------------------------------------------------------
     # Pipeline steps
@@ -128,11 +128,11 @@ class MMKGBuilder:
     async def _step_preprocessing(self, file_path: str):
         chunks_path = os.path.join(self.working_dir, "kv_store_text_chunks.json")
         if os.path.exists(chunks_path):
-            logger.info("⏭️  预处理已完成，跳过")
+            logger.info("⏭️  Preprocessing already complete, skipping")
             return
 
         ext = Path(file_path).suffix.lower()
-        logger.info(f"📄 步骤 1/5 — 文件预处理 [{ext}]")
+        logger.info(f"📄 Step 1/5 — File preprocessing [{ext}]")
 
         processor = _build_processor(file_path, self.working_dir, self.use_mineru)
         texts, _images = await processor.process()
@@ -143,10 +143,10 @@ class MMKGBuilder:
     async def _step_text_extraction(self):
         graph_path = os.path.join(self.working_dir, "graph_chunk_entity_relation.graphml")
         if os.path.exists(graph_path):
-            logger.info("⏭️  文本实体提取已完成，跳过")
+            logger.info("⏭️  Text entity extraction already complete, skipping")
             return
 
-        logger.info("📝 步骤 2/5 — 文本实体提取")
+        logger.info("📝 Step 2/5 — Text entity extraction")
         chunks = load_json(os.path.join(self.working_dir, "kv_store_text_chunks.json")) or {}
         extractor = TextEntityExtractor(working_dir=self.working_dir, cache_dir=_cache_path)
         await extractor.text_entity_extraction(chunks)
@@ -157,10 +157,10 @@ class MMKGBuilder:
         img_ids         = list(image_data.keys())
 
         if not img_ids:
-            logger.info("⏭️  无图像，跳过图像提取")
+            logger.info("⏭️  No images found, skipping image extraction")
             return []
 
-        logger.info(f"🖼️  步骤 3/5 — 图像实体提取 ({len(img_ids)} 张)")
+        logger.info(f"🖼️  Step 3/5 — Image entity extraction ({len(img_ids)} images)")
         images_dir = os.path.join(self.working_dir, "images")
         os.makedirs(images_dir, exist_ok=True)
 
@@ -187,24 +187,24 @@ class MMKGBuilder:
             f.startswith("graph_merged_") for f in os.listdir(self.working_dir)
         )
         if merged_exists:
-            logger.info("⏭️  图谱融合已完成，跳过")
+            logger.info("⏭️  Graph fusion already complete, skipping")
             return
 
-        logger.info(f"🔗 步骤 4/5 — 图谱融合 ({len(img_ids)} 张图像)")
+        logger.info(f"🔗 Step 4/5 — Graph fusion ({len(img_ids)} images)")
         await fusion(img_ids, working_dir=self.working_dir)
 
     def _step_save_output(self):
-        logger.info("💾 步骤 5a/5 — 保存最终图谱")
+        logger.info("💾 Step 5a/5 — Saving final graph")
         _namespace, src_path = get_latest_graphml_file(self.working_dir)
         if not os.path.exists(src_path):
-            logger.warning(f"⚠️  未找到图谱文件: {src_path}")
+            logger.warning(f"⚠️  Graph file not found: {src_path}")
             return
         dest = os.path.join(self.output_dir, f"{self.mmkg_name}.graphml")
         shutil.copy2(src_path, dest)
-        logger.info(f"📦 图谱已保存至: {dest}")
+        logger.info(f"📦 Graph saved to: {dest}")
 
     def _step_generate_report(self):
-        logger.info("📊 步骤 5b/5 — 生成报告")
+        logger.info("📊 Step 5b/5 — Generating report")
         import networkx as nx
         graph_path = os.path.join(self.output_dir, f"{self.mmkg_name}.graphml")
         if not os.path.exists(graph_path):
@@ -225,4 +225,4 @@ class MMKGBuilder:
         report_path = os.path.join(self.output_dir, f"{self.mmkg_name}_report.md")
         with open(report_path, "w", encoding="utf-8") as f:
             f.write("\n".join(report_lines))
-        logger.info(f"📋 报告已保存至: {report_path}")
+        logger.info(f"📋 Report saved to: {report_path}")

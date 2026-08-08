@@ -171,7 +171,7 @@ async def feature_image_entity_construction(feature_dir: str, llm_func) -> list[
         with Image.open(image_path) as img:
             width, height = img.size
         if width <= MIN_IMAGE_SIZE or height <= MIN_IMAGE_SIZE:
-            logger.info(f"🖼️ 跳过小图像: {filename} ({width}x{height})")
+            logger.info(f"🖼️ Skipping small image: {filename} ({width}x{height})")
             os.remove(image_path)
             continue
         img_base64  = _encode_image_base64(image_path)
@@ -234,14 +234,14 @@ async def build_original_image_entity(image_path: str, feature_entities: list[st
     for feature_entity in feature_entities:
         matches = re.findall(pattern, feature_entity)
         if matches:
-            results.append(_build_relationship_string(matches[0], filename, f"{matches[0]}是{filename}的图像特征块。"))
+            results.append(_build_relationship_string(matches[0], filename, f"{matches[0]} is an image feature block of {filename}."))
 
     entity_pattern = r'\"entity\"\<\|\>\"([^\"]+?)\"'
     results.extend(
         _build_relationship_string(
             entity_name,
             filename,
-            f"{entity_name}是从{filename}中提取的实体。",
+            f"{entity_name} is an entity extracted from {filename}.",
         )
         for entity_name in re.findall(entity_pattern, extracted_result)
     )
@@ -308,7 +308,7 @@ async def extract_entities(
     ])
 
     if not all_entities:
-        logger.warning("未提取到任何实体")
+        logger.warning("No entities extracted")
         return None
     return knwoledge_graph_inst
 
@@ -339,12 +339,12 @@ class ImageEntityExtractor:
     async def extract(self, image_path: str):
         try:
             feature_dir = await extract_feature_chunks(image_path, working_dir=self.working_dir)
-            logger.info("🔍 正在提取实体...")
+            logger.info("🔍 Extracting entities...")
             result = await self.extraction_func(
                 self.llm_cache, image_path, feature_dir, knwoledge_graph_inst=self.graph,
             )
             if result is None:
-                logger.warning("未找到实体")
+                logger.warning("No entities found")
             else:
                 self.graph = result
         finally:
@@ -365,7 +365,7 @@ async def img2graph(images_dir: str, working_dir: str | None = None):
 
     base = working_dir or parameter.WORKING_DIR
 
-    for image_path in tqdm(jpg_files, desc="🖼️ 图像实体提取", unit="张"):
+    for image_path in tqdm(jpg_files, desc="🖼️ Image entity extraction", unit="image"):
         image_name        = Path(image_path).stem
         target_graph_path = os.path.join(
             base, "images", image_name,
