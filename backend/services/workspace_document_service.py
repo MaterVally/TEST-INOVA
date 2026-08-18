@@ -164,6 +164,7 @@ class WorkspaceDocumentService:
             graph_path=graph_path,
             embedding_path=str(self.ws.output / f"{_MMKG_NAME}_emb.npy"),
             cache_path=str(self.ws.cache),
+            workspace_id=self.case_id,
         )
 
         from backend.config import QueryParam

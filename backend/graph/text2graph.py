@@ -13,9 +13,10 @@ from typing import cast
 from tqdm import tqdm
 
 from ..config import settings as parameter
+from ..cockroach_graph_storage import CockroachGraphStorage
 from ..core.prompt import PROMPTS
 from ..llm import model_if_cache
-from ..storage.graph_storage import BaseGraphStorage, NetworkXStorage
+from ..storage.graph_storage import BaseGraphStorage
 from ..storage.kv_storage import (
     BaseKVStorage,
     JsonKVStorage,
@@ -150,18 +151,24 @@ async def extract_entities(
 class TextEntityExtractor:
     extraction_func:   callable              = extract_entities
     kv_storage_cls:    type[BaseKVStorage]   = JsonKVStorage
-    graph_storage_cls: type[BaseGraphStorage] = NetworkXStorage
+    graph_storage_cls: type[BaseGraphStorage] = CockroachGraphStorage
     working_dir:       str                   = None
     cache_dir:         str                   = None
+    workspace_id:      str | None            = None
 
     def __post_init__(self):
+        if not self.workspace_id:
+            raise ValueError(
+                "TextEntityExtractor requires workspace_id when using "
+                "CockroachGraphStorage"
+            )
         self.llm_cache = self.kv_storage_cls(
             namespace="llm_response_cache",
             storage_dir=self.cache_dir or parameter.CACHE_PATH
         )
         self.graph = self.graph_storage_cls(
             namespace="chunk_entity_relation",
-            storage_dir=self.working_dir or parameter.WORKING_DIR
+            workspace_id=self.workspace_id,
         )
 
     async def text_entity_extraction(self, chunks: dict):

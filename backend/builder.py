@@ -14,10 +14,12 @@ All processors expose the same interface:
 
 Everything downstream (TextChunking → Graph → Fusion → Output) is unchanged.
 """
+import hashlib
 import logging
 import os
 import shutil
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import settings as parameter
@@ -29,7 +31,7 @@ from .ingestion.docx_preprocessing import DocxChunking
 from .ingestion.excel_preprocessing import ExcelChunking
 from .ingestion.image_preprocessing import ImageChunking
 from .ingestion.pdf_preprocessing import PdfChunking, TextChunking
-from .utils.base import get_latest_graphml_file, load_json, logger
+from .utils.base import get_latest_graphml_file, load_json, logger, write_json
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -112,27 +114,71 @@ class MMKGBuilder:
         file_path = file_path or self.file_path
         logger.info(f"📂 Starting processing: {file_path}")
 
+        if self._is_already_processed(file_path):
+            logger.info(
+                f"⏭️  '{Path(file_path).name}' was already indexed in this "
+                f"session — skipping re-processing, graph is unchanged"
+            )
+            return
+
         await self._step_preprocessing(file_path)
         await self._step_text_extraction()
         img_ids = await self._step_image_extraction()
         await self._step_fusion(img_ids)
+        await self._step_embeddings()
         self._step_save_output()
         self._step_generate_report()
 
+        self._mark_processed(file_path)
         logger.info("✅ Knowledge graph build complete")
+
+    # ------------------------------------------------------------------
+    # Document-level tracking
+    #
+    # This replaces the old "does kv_store_text_chunks.json exist yet"
+    # check. That check answered "has ANYTHING ever been indexed in this
+    # working_dir", which meant document #2, #3, ... were silently
+    # skipped in full. This answers "has THIS specific file already been
+    # indexed", keyed by content hash — so re-uploading the exact same
+    # file is still a safe no-op, but a genuinely new file always runs.
+    # ------------------------------------------------------------------
+
+    def _manifest_path(self) -> str:
+        return os.path.join(self.working_dir, "processed_documents.json")
+
+    @staticmethod
+    def _file_hash(file_path: str) -> str:
+        hasher = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for block in iter(lambda: f.read(1 << 16), b""):
+                hasher.update(block)
+        return hasher.hexdigest()
+
+    def _is_already_processed(self, file_path: str) -> bool:
+        manifest = load_json(self._manifest_path()) or {}
+        return self._file_hash(file_path) in manifest
+
+    def _mark_processed(self, file_path: str):
+        manifest = load_json(self._manifest_path()) or {}
+        manifest[self._file_hash(file_path)] = {
+            "file_name": Path(file_path).name,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        write_json(manifest, self._manifest_path())
 
     # ------------------------------------------------------------------
     # Pipeline steps
     # ------------------------------------------------------------------
 
     async def _step_preprocessing(self, file_path: str):
-        chunks_path = os.path.join(self.working_dir, "kv_store_text_chunks.json")
-        if os.path.exists(chunks_path):
-            logger.info("⏭️  Preprocessing already complete, skipping")
-            return
-
+        # No existence check here anymore. TextChunking.text_chunking()
+        # already hashes each doc/chunk's content (compute_mdhash_id) and
+        # only inserts genuinely new content via filter_keys() against the
+        # existing JsonKVStorage — see ingestion/pdf_preprocessing.py. It
+        # was always safe to call on every upload; the old guard above it
+        # was the actual bug, not this step.
         ext = Path(file_path).suffix.lower()
-        logger.info(f"📄 Step 1/5 — File preprocessing [{ext}]")
+        logger.info(f"📄 Step 1/5 — File preprocessing [{ext}] for {Path(file_path).name}")
 
         processor = _build_processor(file_path, self.working_dir, self.use_mineru)
         texts, _images = await processor.process()
@@ -141,15 +187,43 @@ class MMKGBuilder:
         await text_chunking.text_chunking(texts)
 
     async def _step_text_extraction(self):
-        graph_path = os.path.join(self.working_dir, "graph_chunk_entity_relation.graphml")
-        if os.path.exists(graph_path):
-            logger.info("⏭️  Text entity extraction already complete, skipping")
+        logger.info("📝 Step 2/5 — Text entity extraction")
+
+        chunks = load_json(os.path.join(self.working_dir, "kv_store_text_chunks.json")) or {}
+        if not chunks:
+            logger.info("⏭️  No text chunks available, skipping extraction")
             return
 
-        logger.info("📝 Step 2/5 — Text entity extraction")
-        chunks = load_json(os.path.join(self.working_dir, "kv_store_text_chunks.json")) or {}
+        # Track which chunk_ids have already been through LLM extraction,
+        # separately from the "graph file exists" check that used to gate
+        # this whole step. On a second document, `chunks` now contains
+        # both old and new chunks (TextChunking accumulates them) — only
+        # feed the genuinely new ones to the LLM extractor.
+        extracted_path = os.path.join(self.working_dir, "kv_store_extracted_chunks.json")
+        extracted_ids  = set(load_json(extracted_path) or [])
+
+        new_chunks = {cid: c for cid, c in chunks.items() if cid not in extracted_ids}
+        if not new_chunks:
+            logger.info("⏭️  All chunks already extracted, skipping")
+            return
+
+        logger.info(
+            f"🔍 Extracting entities from {len(new_chunks)} new chunk(s) "
+            f"({len(chunks) - len(new_chunks)} already extracted previously)"
+        )
+
+        # NetworkXStorage.__post_init__ (storage/graph_storage.py) loads
+        # the existing graph_chunk_entity_relation.graphml from disk
+        # automatically if it's already there. So extractor.graph starts
+        # from the PREVIOUS document's graph, and extract_entities()
+        # upserts the new entities/edges into it — passing only new_chunks
+        # here is what makes this an incremental merge instead of a
+        # from-scratch rebuild.
         extractor = TextEntityExtractor(working_dir=self.working_dir, cache_dir=_cache_path)
-        await extractor.text_entity_extraction(chunks)
+        await extractor.text_entity_extraction(new_chunks)
+
+        extracted_ids.update(new_chunks.keys())
+        write_json(list(extracted_ids), extracted_path)
 
     async def _step_image_extraction(self) -> list[str]:
         image_data_path = os.path.join(self.working_dir, "kv_store_image_data.json")
@@ -182,16 +256,40 @@ class MMKGBuilder:
         if not img_ids:
             return
 
-        _existing_graph = get_latest_graphml_file(self.working_dir)
-        merged_exists = any(
-            f.startswith("graph_merged_") for f in os.listdir(self.working_dir)
-        )
-        if merged_exists:
-            logger.info("⏭️  Graph fusion already complete, skipping")
+        # fusion() (graph/fusion.py) already loops per image_name and skips
+        # only the images that already have their own graph_merged_{name}
+        # .graphml on disk — that per-image check is correct and granular.
+        # The blanket check that used to live here ("does ANY merged file
+        # exist anywhere in working_dir") short-circuited fusion entirely
+        # the moment a single image had ever been fused, which meant a
+        # second document's images were never fused in at all. Just call
+        # fusion() every time and let its own per-image guard do the work.
+        logger.info(f"🔗 Step 4/5 — Graph fusion ({len(img_ids)} image(s) to check)")
+        await fusion(img_ids, working_dir=self.working_dir)
+
+    async def _step_embeddings(self):
+        # Skips silently in local-only mode (no workspace_id, i.e. still on
+        # NetworkXStorage) — this step only applies once CockroachGraphStorage
+        # is wired in, since it reads entities out of graph_nodes rows.
+        if not self.workspace_id:
             return
 
-        logger.info(f"🔗 Step 4/5 — Graph fusion ({len(img_ids)} images)")
-        await fusion(img_ids, working_dir=self.working_dir)
+        from . import cockroach_vector_storage as vector_store
+
+        pending = await vector_store.nodes_missing_embeddings(self.workspace_id)
+        if not pending:
+            logger.info("⏭️  No new entities need embeddings")
+            return
+
+        logger.info(f"🧬 Step 5c/5 — Embedding {len(pending)} new entit{'y' if len(pending)==1 else 'ies'}")
+
+        embed_model = parameter.get_embed_model()
+        node_ids     = [nid for nid, _ in pending]
+        descriptions = [desc for _, desc in pending]
+        vectors      = embed_model.encode(descriptions)
+
+        for node_id, vector in zip(node_ids, vectors):
+            await vector_store.upsert_embedding(self.workspace_id, node_id, vector)
 
     def _step_save_output(self):
         logger.info("💾 Step 5a/5 — Saving final graph")

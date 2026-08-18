@@ -7,7 +7,6 @@ import os
 
 import networkx as nx
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
 
 from ..config import settings as parameter
 from ..core.prompt import PROMPTS
@@ -20,13 +19,16 @@ from ..utils.base import (
     logger,
     truncate_list_by_token_size,
 )
+from .. import cockroach_vector_storage as vector_store
 
 
 class GraphRAGQuery:
-    def __init__(self, graph_path=None, embedding_path=None, working_dir=None, cache_path=None):
+    def __init__(self, graph_path=None, embedding_path=None, working_dir=None,
+                 cache_path=None, workspace_id=None):
         self.working_dir    = working_dir or parameter.WORKING_DIR
         self.cache_path     = cache_path or parameter.CACHE_PATH  # T4: accept per-workspace cache path
         self.embed_model    = parameter.get_embed_model()
+        self.workspace_id   = workspace_id  # NEW — required for the CockroachDB vector index
 
         _namespace, default_graph_path = get_latest_graphml_file(self.working_dir)
         self.graph_path     = graph_path or default_graph_path
@@ -41,24 +43,16 @@ class GraphRAGQuery:
         self.text_chunks    = load_json(os.path.join(self.working_dir, "kv_store_text_chunks.json")) or {}
         self.image_data     = load_json(os.path.join(self.working_dir, "kv_store_image_data.json")) or {}
 
-        if os.path.exists(self.embedding_path):
-            self.embeddings = np.load(self.embedding_path)
-        else:
-            logger.info("🔄 No embeddings found, building now...")
-            self.embeddings = self._build_embeddings()
-            np.save(self.embedding_path, self.embeddings)
+        # Embeddings now live in CockroachDB's entity_embeddings table, kept
+        # in sync by MMKGBuilder._step_embeddings() after extraction — see
+        # builder.py. Nothing to load here anymore; find_similar_nodes()
+        # below queries the vector index directly, on demand, per question.
+        if not self.workspace_id:
+            raise ValueError("GraphRAGQuery requires workspace_id to query the vector index")
 
-    def _build_embeddings(self):
-        descriptions = [
-            self.graph.nodes[n].get("description", n) for n in self.node_list
-        ]
-        return self.embed_model.encode(descriptions)
-
-    def find_similar_nodes(self, query: str, top_k: int = 5):
-        q_emb = self.embed_model.encode([query])
-        sims  = cosine_similarity(q_emb, self.embeddings)[0]
-        idxs  = np.argsort(sims)[::-1][:top_k]
-        return [(self.node_list[i], float(sims[i])) for i in idxs]
+    async def find_similar_nodes(self, query: str, top_k: int = 5):
+        q_emb = self.embed_model.encode([query])[0]
+        return await vector_store.top_k_similar(self.workspace_id, q_emb, k=top_k)
 
     def _find_most_related_text_unit_from_entities(self, node_datas):
         text_units = []
@@ -79,9 +73,9 @@ class GraphRAGQuery:
                     edges.append(data)
         return edges
 
-    def _build_local_query_context(self, query, top_k=5):
+    async def _build_local_query_context(self, query, top_k=5):
         # --- single similarity search for this entire request ---
-        similar_nodes = self.find_similar_nodes(query, top_k=top_k)
+        similar_nodes = await self.find_similar_nodes(query, top_k=top_k)
 
         node_datas = []
         for node_name, score in similar_nodes:
@@ -150,7 +144,7 @@ class GraphRAGQuery:
         # Single retrieval call — similar_nodes is now returned by
         # _build_local_query_context alongside the LLM context strings.
         entities_ctx, sources_ctx, rels_ctx, node_datas, similar_nodes = (
-            self._build_local_query_context(question, top_k=param.top_k)
+            await self._build_local_query_context(question, top_k=param.top_k)
         )
 
         # ----------------------------------------------------------------

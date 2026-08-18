@@ -31,9 +31,13 @@ logger = logging.getLogger(__name__)
 
 
 class MultiDocumentService:
+    """Legacy upload service, scoped by its upload-session case ID."""
 
-    def __init__(self):
-        self.builder = MMKGBuilder()
+    @staticmethod
+    def _case_dirs(case_id: str) -> tuple[Path, Path]:
+        """Return isolated working and output directories for one upload case."""
+        case_root = Path("data/uploads") / case_id
+        return case_root / "working", case_root / "output"
 
     # ------------------------------------------------------------------
     # Primary entry point — sequential processing
@@ -63,6 +67,15 @@ class MultiDocumentService:
         """
         if not file_paths:
             raise ValueError("No files supplied.")
+        if not case_id:
+            raise ValueError("MultiDocumentService requires case_id as workspace_id")
+
+        working_dir, output_dir = self._case_dirs(case_id)
+        builder = MMKGBuilder(
+            working_dir=str(working_dir),
+            output_dir=str(output_dir),
+            workspace_id=case_id,
+        )
 
         processed:    list[str]  = []
         failed:       list[dict] = []
@@ -72,7 +85,7 @@ class MultiDocumentService:
             fname = Path(file_path).name
             logger.info(f"⚙️  [{case_id}] Processing: {fname}")
             try:
-                await self.builder.index(file_path)
+                await builder.index(file_path)
                 processed.append(fname)
                 proc_results.append({"file": fname, "status": "processed"})
                 logger.info(f"✅ [{case_id}] Done: {fname}")
@@ -81,7 +94,7 @@ class MultiDocumentService:
                 failed.append({"file": fname, "error": str(exc)})
                 proc_results.append({"file": fname, "status": "failed", "error": str(exc)})
 
-        graph_summary = self._graph_summary()
+        graph_summary = self._graph_summary(output_dir)
 
         return {
             "success":          len(failed) == 0,
@@ -108,6 +121,15 @@ class MultiDocumentService:
         Concurrent variant — use only if confirmed pipeline is safe.
         Sequential processing via process_documents() is the default.
         """
+        if not case_id:
+            raise ValueError("MultiDocumentService requires case_id as workspace_id")
+
+        working_dir, output_dir = self._case_dirs(case_id)
+        builder = MMKGBuilder(
+            working_dir=str(working_dir),
+            output_dir=str(output_dir),
+            workspace_id=case_id,
+        )
         semaphore    = asyncio.Semaphore(max_workers)
         processed:   list[str]  = []
         failed:      list[dict] = []
@@ -117,7 +139,7 @@ class MultiDocumentService:
             fname = Path(path).name
             async with semaphore:
                 try:
-                    await self.builder.index(path)
+                    await builder.index(path)
                     processed.append(fname)
                     proc_results.append({"file": fname, "status": "processed"})
                 except Exception as exc:
@@ -126,7 +148,7 @@ class MultiDocumentService:
 
         await asyncio.gather(*(_run(p) for p in file_paths))
 
-        graph_summary = self._graph_summary()
+        graph_summary = self._graph_summary(output_dir)
 
         return {
             "success":         len(failed) == 0,
@@ -143,9 +165,9 @@ class MultiDocumentService:
     # Graph summary
     # ------------------------------------------------------------------
 
-    def _graph_summary(self) -> dict:
+    def _graph_summary(self, output_dir: Path) -> dict:
         """Read the generated GraphML and return node/edge/type counts."""
-        graph_path = Path(settings.OUTPUT_DIR) / f"{settings.MMKG_NAME}.graphml"
+        graph_path = output_dir / f"{settings.MMKG_NAME}.graphml"
         if not graph_path.exists():
             return {"available": False}
 
