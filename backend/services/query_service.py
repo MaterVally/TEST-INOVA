@@ -22,7 +22,7 @@ from backend.utils.base import get_latest_graphml_file
 
 class QueryService:
 
-    async def ask(self, question: str, top_k: int = 10) -> dict:
+    async def ask(self, case_id: str, question: str, top_k: int = 10) -> dict:
         _, resolved_graph = get_latest_graphml_file(settings.WORKING_DIR)
         if not Path(resolved_graph).exists():
             raise FileNotFoundError(
@@ -31,7 +31,7 @@ class QueryService:
 
         start = time.time()
 
-        query_engine = GraphRAGQuery()
+        query_engine = GraphRAGQuery(workspace_id=case_id)
 
         # Override retrieval size dynamically
         settings.QueryParam.top_k = top_k

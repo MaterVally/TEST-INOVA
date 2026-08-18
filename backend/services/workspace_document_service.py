@@ -87,6 +87,7 @@ class WorkspaceDocumentService:
             working_dir=str(self.ws.working),
             output_dir=str(self.ws.output),
             mmkg_name=MMKG_NAME,
+            workspace_id=self.case_id,
         )
 
         processed:    list[str]  = []
@@ -133,7 +134,12 @@ class WorkspaceDocumentService:
     # Query
     # ------------------------------------------------------------------
 
-    async def query(self, question: str, top_k: int = 10) -> dict:
+    async def query(
+        self,
+        question: str,
+        top_k: int = 10,
+        session_id: str | None = None,
+    ) -> dict:
         """Run a GraphRAG query scoped to this user's workspace.
 
         Raises
@@ -149,6 +155,24 @@ class WorkspaceDocumentService:
             )
 
         start = time.time()
+
+        history: list[dict] = []
+        if session_id:
+            from backend.memory import get_session_history
+            history = await get_session_history(self.case_id, session_id)
+
+        if history:
+            history_context = "\n".join(
+                f"Turn {turn['turn']}\nUser: {turn['question']}\nAssistant: {turn['answer']}"
+                for turn in history
+            )
+            query_question = (
+                "Use the following prior conversation only when it is relevant. "
+                "Answer the current question using the retrieved compliance evidence.\n\n"
+                f"Prior conversation:\n{history_context}\n\nCurrent question: {question}"
+            )
+        else:
+            query_question = question
 
 
         # GraphRAGQuery reads graph from working_dir and embeddings from output_dir.
@@ -178,7 +202,7 @@ class WorkspaceDocumentService:
             number_of_mmentities = QueryParam.number_of_mmentities
             local_max_token_for_text_unit = QueryParam.local_max_token_for_text_unit
 
-        result = await query_engine.query(question, param=_Param, return_context=True)
+        result = await query_engine.query(query_question, param=_Param, return_context=True)
 
         answer            = result["answer"]
         retrieval_context = result["retrieval"]
@@ -200,6 +224,11 @@ class WorkspaceDocumentService:
                 "edges": query_engine.graph.number_of_edges(),
             },
         }
+
+        if session_id:
+            from backend.memory import save_turn
+            result["session_id"] = session_id
+            result["turn"] = await save_turn(self.case_id, session_id, question, answer)
 
         # Persist query stats so /api/stats can return real metrics
         self._update_query_stats(evidence)

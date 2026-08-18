@@ -298,6 +298,46 @@ cp frontend/.env.example frontend/.env
    ```
    *Note: If MinerU is not installed or `USE_MINERU=false`, the backend seamlessly falls back to PyMuPDF (`pymupdf`).*
 
+### CockroachDB migration
+
+Set `COCKROACH_DATABASE_URL` to your cluster connection string, then apply
+[`backend/storage/migrations/001_cockroachdb_schema.sql`](backend/storage/migrations/001_cockroachdb_schema.sql)
+before starting graph ingestion:
+
+```bash
+psql "$COCKROACH_DATABASE_URL" -f backend/storage/migrations/001_cockroachdb_schema.sql
+```
+
+You can run the same SQL file in the CockroachDB Cloud SQL shell. If using an
+MCP client during development, connect that client to the cluster and execute
+the migration through the server's discovered SQL tool; do not expose the
+database URL to the frontend.
+
+### CockroachDB Cloud MCP
+
+Use CockroachDB Cloud's managed **streamable HTTP** MCP server from a real MCP
+client (for example Cursor or Claude Code). Configure the client with the
+cluster ID and either OAuth or a service-account API key:
+
+```json
+{
+  "mcpServers": {
+    "cockroachdb-cloud": {
+      "type": "http",
+      "url": "https://cockroachlabs.cloud/mcp",
+      "headers": {
+        "mcp-cluster-id": "<cluster-id>",
+        "Authorization": "Bearer <service-account-api-key>"
+      }
+    }
+  }
+}
+```
+
+The client performs the MCP initialization and tool discovery handshake; do
+not replace this with a raw HTTP SQL request. The tool names are discovered
+from the connected server so they are not hard-coded in this repository.
+
 5. **Configure environment variables**:
    Create `.env` based on `.env.example` and set your API keys and Supabase credentials.
 
@@ -327,7 +367,7 @@ cp frontend/.env.example frontend/.env
 #### Start the FastAPI Backend Server:
 ```bash
 # From project root:
-uvicorn backend.api.main:app --reload --host 0.0.0.0 --port 8000
+python -m backend.api.run
 ```
 - API Base URL: `http://localhost:8000`
 - Interactive OpenAPI Docs: `http://localhost:8000/docs`

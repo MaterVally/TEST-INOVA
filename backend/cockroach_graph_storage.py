@@ -20,6 +20,7 @@ Usage — same call sites as NetworkXStorage, just swap the class:
 import os
 from dataclasses import dataclass
 
+import networkx as nx
 import psycopg
 from psycopg_pool import AsyncConnectionPool
 
@@ -168,9 +169,80 @@ class CockroachGraphStorage(BaseGraphStorage):
                 ),
             )
 
+    async def export_graphml(self, destination: str) -> None:
+        """Write this workspace's CockroachDB graph as a NetworkX GraphML snapshot."""
+        pool = await self._pool()
+        async with pool.connection() as conn:
+            node_rows = await (await conn.execute(
+                "SELECT node_id, entity_type, description, source_id FROM graph_nodes WHERE workspace_id=%s",
+                (self.workspace_id,),
+            )).fetchall()
+            edge_rows = await (await conn.execute(
+                "SELECT source_id, target_id, description, weight FROM graph_edges WHERE workspace_id=%s",
+                (self.workspace_id,),
+            )).fetchall()
+
+        graph = nx.Graph()
+        for node_id, entity_type, description, source_id in node_rows:
+            graph.add_node(node_id, entity_type=entity_type or "UNKNOWN", description=description or "", source_id=source_id or "")
+        for source_id, target_id, description, weight in edge_rows:
+            graph.add_edge(source_id, target_id, description=description or "", weight=float(weight) if weight is not None else 1.0)
+        nx.write_graphml(graph, destination)
+
+    async def replace_from_graphml(self, source: str) -> None:
+        """Replace this workspace's database graph with a fused GraphML snapshot."""
+        graph = nx.read_graphml(source)
+        pool = await self._pool()
+        async with pool.connection() as conn:
+            await conn.execute(
+                "DELETE FROM entity_embeddings WHERE workspace_id=%s",
+                (self.workspace_id,),
+            )
+            await conn.execute(
+                "DELETE FROM graph_edges WHERE workspace_id=%s",
+                (self.workspace_id,),
+            )
+            await conn.execute(
+                "DELETE FROM graph_nodes WHERE workspace_id=%s",
+                (self.workspace_id,),
+            )
+            for node_id, data in graph.nodes(data=True):
+                await conn.execute(
+                    """
+                    INSERT INTO graph_nodes (workspace_id, node_id, entity_type, description, source_id, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, now())
+                    """,
+                    (
+                        self.workspace_id,
+                        node_id,
+                        data.get("entity_type", "UNKNOWN"),
+                        data.get("description", ""),
+                        data.get("source_id", ""),
+                    ),
+                )
+            for source_id, target_id, data in graph.edges(data=True):
+                await conn.execute(
+                    """
+                    INSERT INTO graph_edges (workspace_id, source_id, target_id, description, weight, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, now())
+                    """,
+                    (
+                        self.workspace_id,
+                        source_id,
+                        target_id,
+                        data.get("description", ""),
+                        data.get("weight", 1.0),
+                    ),
+                )
+
     async def index_done_callback(self):
         # NetworkXStorage writes the whole .graphml file here. CockroachDB
         # already persisted every upsert individually above, so there's
         # nothing batched left to flush — this is just a no-op for
         # interface compatibility with callers that await it.
-        pass
+        if not self.storage_dir:
+            return
+        os.makedirs(self.storage_dir, exist_ok=True)
+        await self.export_graphml(
+            os.path.join(self.storage_dir, f"graph_{self.namespace}.graphml")
+        )

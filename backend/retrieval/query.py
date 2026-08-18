@@ -27,7 +27,6 @@ class GraphRAGQuery:
                  cache_path=None, workspace_id=None):
         self.working_dir    = working_dir or parameter.WORKING_DIR
         self.cache_path     = cache_path or parameter.CACHE_PATH  # T4: accept per-workspace cache path
-        self.embed_model    = parameter.get_embed_model()
         self.workspace_id   = workspace_id  # NEW — required for the CockroachDB vector index
 
         _namespace, default_graph_path = get_latest_graphml_file(self.working_dir)
@@ -36,6 +35,12 @@ class GraphRAGQuery:
             parameter.OUTPUT_DIR, f"{parameter.MMKG_NAME}_emb.npy"
         )
 
+        if not os.path.exists(self.graph_path):
+            raise FileNotFoundError(
+                "Knowledge graph snapshot not found. Upload and index a document first. "
+                f"(Expected: {self.graph_path})"
+            )
+        self.embed_model    = parameter.get_embed_model()
         self.graph          = nx.read_graphml(self.graph_path)
         self.node_list      = list(self.graph.nodes())
         self.llm_cache      = JsonKVStorage(namespace="llm_response_cache",    storage_dir=self.cache_path)

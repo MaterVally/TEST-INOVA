@@ -17,6 +17,7 @@ router = APIRouter(
 
 
 class QueryRequest(BaseModel):
+    case_id: str
     question: str = Field(..., min_length=3)
     top_k: int = Field(default=10, ge=1, le=50)
 
@@ -26,6 +27,7 @@ async def ask_question(request: QueryRequest):
     try:
         service = QueryService()
         result  = await service.ask(
+            case_id=request.case_id,
             question=request.question,
             top_k=request.top_k,
         )

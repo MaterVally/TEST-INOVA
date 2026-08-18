@@ -100,6 +100,7 @@ class MMKGBuilder:
     output_dir:  str  = field(default_factory=lambda: parameter.OUTPUT_DIR)
     mmkg_name:   str  = field(default_factory=lambda: parameter.MMKG_NAME)
     use_mineru:  bool = field(default_factory=lambda: parameter.USE_MINERU)
+    workspace_id: str | None = None
 
     def __post_init__(self):
         os.makedirs(self.working_dir, exist_ok=True)
@@ -125,6 +126,7 @@ class MMKGBuilder:
         await self._step_text_extraction()
         img_ids = await self._step_image_extraction()
         await self._step_fusion(img_ids)
+        await self._step_sync_graph_snapshot()
         await self._step_embeddings()
         self._step_save_output()
         self._step_generate_report()
@@ -219,7 +221,12 @@ class MMKGBuilder:
         # upserts the new entities/edges into it — passing only new_chunks
         # here is what makes this an incremental merge instead of a
         # from-scratch rebuild.
-        extractor = TextEntityExtractor(working_dir=self.working_dir, cache_dir=_cache_path)
+        extractor = TextEntityExtractor(
+            working_dir=self.working_dir,
+            cache_dir=_cache_path,
+            storage_dir=self.working_dir,
+            workspace_id=self.workspace_id,
+        )
         await extractor.text_entity_extraction(new_chunks)
 
         extracted_ids.update(new_chunks.keys())
@@ -266,6 +273,23 @@ class MMKGBuilder:
         # fusion() every time and let its own per-image guard do the work.
         logger.info(f"🔗 Step 4/5 — Graph fusion ({len(img_ids)} image(s) to check)")
         await fusion(img_ids, working_dir=self.working_dir)
+
+    async def _step_sync_graph_snapshot(self):
+        """Make CockroachDB authoritative again after local GraphML fusion."""
+        if not self.workspace_id:
+            return
+        _namespace, graph_path = get_latest_graphml_file(self.working_dir)
+        if not os.path.exists(graph_path):
+            logger.warning("No GraphML snapshot available to sync to CockroachDB")
+            return
+        from .cockroach_graph_storage import CockroachGraphStorage
+
+        storage = CockroachGraphStorage(
+            namespace="chunk_entity_relation",
+            storage_dir=self.working_dir,
+            workspace_id=self.workspace_id,
+        )
+        await storage.replace_from_graphml(graph_path)
 
     async def _step_embeddings(self):
         # Skips silently in local-only mode (no workspace_id, i.e. still on

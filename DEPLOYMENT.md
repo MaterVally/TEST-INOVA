@@ -18,7 +18,7 @@ Backend (Render)
 -----------------
 - Service type: Web Service (Python)
 - Build command: `pip install -r requirements.txt`
-- Start command (Procfile provided): `uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT --workers 1`
+- Start command: `uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT --workers 1` (Linux deployment)
 - Environment variables to set in Render (minimum):
   - `LLM_API_KEY` (OpenAI API key)
   - `MM_API_KEY` (OpenAI or same key)
@@ -47,7 +47,7 @@ Quick test (local)
 ```powershell
 python -m venv venv
 venv\Scripts\pip install -r requirements.txt
-venv\Scripts\uvicorn backend.api.main:app --reload
+venv\Scripts\python -m backend.api.run
 ```
 2. Start frontend locally (from `frontend/`):
 ```bash

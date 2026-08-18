@@ -25,7 +25,9 @@ from backend.config import settings
 class DocumentService:
 
     def __init__(self):
-        self.builder = MMKGBuilder()
+        # The builder is created per document after a stable workspace ID is
+        # available; CockroachGraphStorage requires that scope.
+        self.builder: MMKGBuilder | None = None
 
     async def process_document(
         self,
@@ -36,6 +38,8 @@ class DocumentService:
         start_time = time.time()
         file_id    = file_id or str(uuid.uuid4())
         path       = Path(file_path)
+
+        self.builder = MMKGBuilder(workspace_id=file_id)
 
         if not path.exists():
             raise FileNotFoundError(file_path)
