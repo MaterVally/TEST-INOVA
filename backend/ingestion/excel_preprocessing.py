@@ -78,25 +78,39 @@ class ExcelChunking:
                 f"=== SHEET: {worksheet.title} ==="
             )
 
-            for row in worksheet.iter_rows(values_only=True):
+            # Read header row first (first non-empty row)
+            headers: list[str] = []
+            rows_iter = worksheet.iter_rows(values_only=True)
 
-                values = []
+            for row in rows_iter:
+                candidate = [str(v).strip() for v in row if v is not None and str(v).strip()]
+                if candidate:
+                    headers = candidate
+                    break
 
-                for value in row:
+            if not headers:
+                continue
 
-                    if value is None:
-                        continue
+            # Emit a header summary so the LLM knows the schema
+            extracted.append(f"This sheet contains columns: {', '.join(headers)}.")
 
-                    clean_value = str(value).strip()
+            # Convert each data row into a natural-language sentence
+            for row in rows_iter:
+                values = [str(v).strip() if v is not None else "" for v in row]
 
-                    if clean_value:
-                        values.append(clean_value)
+                # Skip completely empty rows
+                if not any(values):
+                    continue
 
-                if values:
+                # Build "Column: Value" pairs, skip empty cells
+                pairs = [
+                    f"{h}: {v}"
+                    for h, v in zip(headers, values)
+                    if v
+                ]
 
-                    extracted.append(
-                        " | ".join(values)
-                    )
+                if pairs:
+                    extracted.append(". ".join(pairs) + ".")
 
         workbook.close()
 
