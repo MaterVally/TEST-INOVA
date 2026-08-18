@@ -20,13 +20,23 @@ Backend (Render)
 - Build command: `pip install -r requirements.txt`
 - Start command: `uvicorn backend.api.main:app --host 0.0.0.0 --port $PORT --workers 1` (Linux deployment)
 - Environment variables to set in Render (minimum):
+  - `COCKROACH_DATABASE_URL` (CockroachDB Cloud TLS connection string; apply the repository migration before the first upload)
   - `LLM_API_KEY` (OpenAI API key)
   - `MM_API_KEY` (OpenAI or same key)
   - `MM_API_BASE` (optional, defaults to `https://api.openai.com/v1`)
   - `ALLOWED_ORIGINS` (comma-separated list; include the Vercel frontend origin e.g. `https://your-app.vercel.app`)
   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` (if using auth)
   - `OPENAI_API_KEY` (for Whisper/transcription usage) or rely on `LLM_API_KEY`
-- Attach persistent disks or S3 for large file storage if needed (optional)
+  - `DOCUMENT_STORAGE_BACKEND=local` (default) or `s3` for durable AWS S3 document copies
+  - When using S3: `AWS_REGION`, `S3_DOCUMENT_BUCKET`, and a least-privilege IAM credential
+- Attach a persistent disk for processing artefacts. With S3 enabled, raw uploads are mirrored to a private bucket; GraphML/cache files still use the disk.
+
+CockroachDB setup
+-----------------
+1. Rotate the CockroachDB user password if it has ever been shared and create a new connection string.
+2. Set `COCKROACH_DATABASE_URL` only in Render/local secret stores, never in a frontend `VITE_` variable.
+3. Apply `backend/storage/migrations/001_cockroachdb_schema.sql` through the CockroachDB Cloud SQL shell or `psql` before ingestion.
+4. Confirm the single intended vector index is `entity_embeddings_vector_idx`; inspect any other vector index in the Cloud console before removing it.
 
 CORS and API base
 ------------------

@@ -25,6 +25,7 @@ from backend.auth.middleware.jwt_middleware import AuthContext
 from backend.auth.workspace import UserWorkspace
 from backend.auth.services.case_service import create_case, get_case
 from backend.services.workspace_document_service import WorkspaceDocumentService
+from backend.storage.s3_document_storage import upload_document
 
 logger = logging.getLogger(__name__)
 
@@ -121,13 +122,26 @@ async def upload_documents(
         try:
             content = await upload.read()
             destination.write_bytes(content)
+            storage_key = await upload_document(
+                user_id=auth.user_id,
+                case_id=case_id,
+                filename=safe_name,
+                data=content,
+                content_type=upload.content_type or "application/octet-stream",
+            )
             saved_paths.append(str(destination))
-            file_results.append({
+            file_result = {
                 "filename":   original_name,
                 "stored_as":  safe_name,
                 "size_bytes": destination.stat().st_size,
                 "status":     "saved",
-            })
+            }
+            if storage_key:
+                file_result["storage_key"] = storage_key
+                file_result["storage_backend"] = "s3"
+            else:
+                file_result["storage_backend"] = "local"
+            file_results.append(file_result)
             logger.info("✅ Saved %s → %s", original_name, destination)
         except Exception as exc:
             logger.error("❌ Failed to save %s: %s", original_name, exc)

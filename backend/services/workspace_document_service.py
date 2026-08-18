@@ -20,6 +20,7 @@ from pathlib import Path
 import networkx as nx
 
 from backend.auth.workspace import UserWorkspace
+from backend.compliance.citation_engine import CitationEngine
 from backend.builder import MMKGBuilder
 from backend.compliance.evidence_engine import EvidenceEngine
 from backend.config import MMKG_NAME
@@ -214,10 +215,16 @@ class WorkspaceDocumentService:
             text_chunks=query_engine.text_chunks,
             image_data=query_engine.image_data,
         )
+        citations = CitationEngine().build_citations(
+            retrieval_context=retrieval_context,
+            graph=query_engine.graph,
+            text_chunks=query_engine.text_chunks,
+        )
 
         result = {
             "answer":                    answer,
             "evidence":                  evidence,
+            "citations":                 citations,
             "processing_time_seconds":   processing_time,
             "graph": {
                 "nodes": query_engine.graph.number_of_nodes(),

@@ -80,10 +80,10 @@ class CitationEngine:
                     "description": description,
                 })
 
-        # Deduplicate by source_chunk — last writer wins (highest-scored
-        # entity for that chunk, since similar_nodes is score-descending)
+        # Deduplicate by source_chunk. Similar nodes are score-descending, so
+        # preserve the first (highest-confidence) entity for each source.
         unique: dict[str, dict] = {}
         for citation in citations:
-            unique[citation["source_chunk"]] = citation
+            unique.setdefault(citation["source_chunk"], citation)
 
         return list(unique.values())

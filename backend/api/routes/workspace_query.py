@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import traceback
 import uuid
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -32,7 +33,7 @@ router = APIRouter(
 
 class QueryRequest(BaseModel):
     case_id:  str
-    session_id: str | None = None
+    session_id: UUID | None = None
     question: str  = Field(..., min_length=3)
     top_k:    int  = Field(default=10, ge=1, le=50)
 
@@ -54,7 +55,7 @@ async def ask_question(
             user_id=auth.user_id,
             case_id=request.case_id,
         )
-        session_id = request.session_id or str(uuid.uuid4())
+        session_id = str(request.session_id or uuid.uuid4())
         result = await svc.query(
             question=request.question,
             top_k=request.top_k,

@@ -52,6 +52,18 @@ async def _delete_storage_folder(user_id: str, case_id: str) -> None:
         )
 
 
+async def _delete_s3_documents(user_id: str, case_id: str) -> None:
+    """Remove durable S3 documents when the optional S3 backend is enabled."""
+    try:
+        from backend.storage.s3_document_storage import delete_case_documents
+
+        deleted = await delete_case_documents(user_id=user_id, case_id=case_id)
+        if deleted:
+            logger.info("Deleted %d S3 document(s) for case=%s", deleted, case_id)
+    except Exception as exc:
+        logger.error("S3 cleanup failed for user=%s case=%s: %s", user_id, case_id, exc)
+
+
 # ---------------------------------------------------------------------------
 # Public service functions
 # ---------------------------------------------------------------------------
@@ -260,8 +272,9 @@ async def delete_case(case_id: str, user_id: str) -> dict:
     ws = UserWorkspace(user_id=user_id, case_id=case_id)
     fs_results = ws.delete()
 
-    # 3. Supabase Storage cleanup (best-effort)
+    # 3. Durable object-storage cleanup (best-effort)
     await _delete_storage_folder(user_id, case_id)
+    await _delete_s3_documents(user_id, case_id)
 
     # 4. Delete DB row
     try:

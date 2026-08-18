@@ -226,6 +226,7 @@ cp .env.example .env
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `OPENAI_API_KEY` | **Yes** | — | OpenAI API key for text LLM, vision, and Whisper transcription |
+| `COCKROACH_DATABASE_URL` | **Yes** | — | CockroachDB Cloud TLS URL for persistent graph, vector, and session memory |
 | `OPENAI_MODEL` | No | `gpt-4o` | Primary OpenAI model |
 | `LLM_API_BASE` | No | `https://api.openai.com/v1` | OpenAI API endpoint base |
 | `MM_API_KEY` | No | `${OPENAI_API_KEY}` | Vision LLM API key override |
@@ -236,6 +237,8 @@ cp .env.example .env
 | `SUPABASE_SERVICE_ROLE_KEY` | **Yes** | — | Supabase service role key (for backend admin operations) |
 | `SUPABASE_JWT_SECRET` | **Yes** | — | Secret key to verify client Supabase JWT tokens |
 | `ALLOWED_ORIGINS` | **Yes** | `http://localhost:5173` | Comma-separated list of allowed CORS origins |
+| `DOCUMENT_STORAGE_BACKEND` | No | `local` | Set to `s3` to mirror raw uploads to a private AWS S3 bucket |
+| `AWS_REGION` / `S3_DOCUMENT_BUCKET` | When using S3 | — | Region and private bucket for durable raw documents |
 | `USE_MINERU` | No | `false` | Enable MinerU parser (`true`/`false`) |
 | `INPUT_PDF_PATH` | No | `data/input/` | Input directory path |
 | `WORKING_DIR` | No | `data/working` | Intermediate build directory |

@@ -57,6 +57,15 @@ interface EvidenceImage {
   image_path: string
 }
 
+interface Citation {
+  entity: string
+  entity_type: string
+  confidence: number
+  source_chunk: string
+  excerpt: string
+  description: string
+}
+
 interface Evidence {
   entities?: EvidenceEntity[]
   relationships?: EvidenceRelationship[]
@@ -67,6 +76,7 @@ interface Evidence {
 interface QueryResult {
   answer: string
   evidence: Evidence
+  citations?: Citation[]
   processing_time_seconds: number
   graph?: { nodes: number; edges: number }
 }
@@ -75,6 +85,7 @@ interface ApiResponse {
   success: boolean
   question: string
   case_id: string
+  session_id: string
   result: QueryResult
 }
 
@@ -176,10 +187,27 @@ export default function AIAssistantPage() {
   const [messages, setMessages]   = useState<ChatMessage[]>([])
   const [question, setQuestion]   = useState('')
   const [loading, setLoading]     = useState(false)
+  const [sessionId, setSessionId] = useState(generateId)
   const messagesEndRef            = useRef<HTMLDivElement>(null)
 
   // The active case — set by UploadPage after a successful upload or by CasesPage
   const caseId = localStorage.getItem('innova_active_case_id')
+
+  // A case can have many conversations. Keep the active conversation ID in
+  // sessionStorage so follow-up questions use the same CockroachDB memory
+  // session, while a browser restart starts a deliberately new conversation.
+  useEffect(() => {
+    if (!caseId) return
+    const key = `innova_chat_session:${caseId}`
+    const stored = sessionStorage.getItem(key)
+    if (stored) {
+      setSessionId(stored)
+      return
+    }
+    const next = generateId()
+    sessionStorage.setItem(key, next)
+    setSessionId(next)
+  }, [caseId])
 
   // Latest assistant message (drives the evidence panel)
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
@@ -213,6 +241,7 @@ export default function AIAssistantPage() {
         },
         body: JSON.stringify({
           case_id:  caseId,
+          session_id: sessionId,
           question: q,
           top_k:    10,
         }),
@@ -280,7 +309,13 @@ export default function AIAssistantPage() {
         {/* New conversation */}
         <div className="p-4">
           <button
-            onClick={() => setMessages([])}
+            onClick={() => {
+              setMessages([])
+              if (!caseId) return
+              const next = generateId()
+              sessionStorage.setItem(`innova_chat_session:${caseId}`, next)
+              setSessionId(next)
+            }}
             className="w-full rounded-xl bg-cyan-500 hover:bg-cyan-600 transition py-2.5 text-sm font-semibold"
           >
             New Conversation
@@ -602,6 +637,32 @@ export default function AIAssistantPage() {
                     </div>
                     <p className="text-[11px] text-zinc-300 leading-relaxed line-clamp-4 bg-zinc-900/60 p-2 rounded border border-zinc-700/40">
                       "{chunk.text.slice(0, 320)}{chunk.text.length > 320 ? '…' : ''}"
+                    </p>
+                  </div>
+                ))}
+              </EvidenceSection>
+
+              {/* ── Citations ── */}
+              <EvidenceSection
+                title="Citations"
+                icon={<FileText size={14} />}
+                count={lastAssistant.result.citations?.length ?? 0}
+                color="text-sky-400"
+              >
+                {lastAssistant.result.citations?.map((citation, i) => (
+                  <div
+                    key={`${citation.source_chunk}-${i}`}
+                    className="rounded-lg bg-zinc-800/60 border border-zinc-700/50 p-3 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-semibold text-sky-300 truncate">{citation.entity}</span>
+                      <ConfidenceBadge score={citation.confidence} />
+                    </div>
+                    <p className="text-[10px] font-mono text-zinc-500 truncate">
+                      Source: {citation.source_chunk}
+                    </p>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed line-clamp-4 bg-zinc-900/60 p-2 rounded border border-zinc-700/40">
+                      “{citation.excerpt}”
                     </p>
                   </div>
                 ))}
