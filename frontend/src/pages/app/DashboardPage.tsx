@@ -10,7 +10,6 @@ import {
   RefreshCw, Sparkles, TrendingUp, UploadCloud,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getAccessToken } from '../../auth/tokenStore'
 import { useAuth } from '../../auth/AuthContext'
 import { fetchApi } from '../../api/fetchWithNgrok'
 
@@ -42,11 +41,6 @@ interface CaseStats {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function authHdr(): Record<string, string> {
-  const t = getAccessToken()
-  return t ? { Authorization: `Bearer ${t}` } : {}
-}
-
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
@@ -64,7 +58,7 @@ const item = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, trans
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { workspaceId } = useAuth()
+  const { workspaceId, isLoading: authLoading } = useAuth()
   const navigate = useNavigate()
 
   const [cases, setCases]           = useState<ApiCase[]>([])
@@ -80,7 +74,7 @@ export default function DashboardPage() {
   async function fetchCases() {
     setLC(true)
     try {
-      const r = await fetchApi(`${API}/cases`, { headers: authHdr() })
+      const r = await fetchApi(`${API}/cases`)
       const d = await r.json()
       setCases(Array.isArray(d) ? d : (d.cases ?? []))
     } catch { /* silent */ } finally { setLC(false) }
@@ -90,7 +84,7 @@ export default function DashboardPage() {
     if (!caseId) { setLG(false); return }
     setLG(true)
     try {
-      const r = await fetchApi(`${API}/graph/summary?case_id=${encodeURIComponent(caseId)}`, { headers: authHdr() })
+      const r = await fetchApi(`${API}/graph/summary?case_id=${encodeURIComponent(caseId)}`)
       if (r.ok) {
         const summary = await r.json() as Omit<GraphSummary, 'available'>
         setGraph({ ...summary, available: true })
@@ -104,12 +98,15 @@ export default function DashboardPage() {
     if (!caseId) { setLS(false); return }
     setLS(true)
     try {
-      const r = await fetchApi(`${API}/stats?case_id=${encodeURIComponent(caseId)}`, { headers: authHdr() })
+      const r = await fetchApi(`${API}/stats?case_id=${encodeURIComponent(caseId)}`)
       if (r.ok) setCaseStats(await r.json() as CaseStats)
     } catch { /* silent */ } finally { setLS(false) }
   }
 
-  useEffect(() => { void fetchCases(); void fetchGraph(); void fetchStats() }, [])
+  useEffect(() => {
+    if (authLoading) return   // wait for token to be populated before fetching
+    void fetchCases(); void fetchGraph(); void fetchStats()
+  }, [authLoading])
   const filtered = cases.filter(c => activeTab === 'all' || c.status === activeTab)
 
   // ── Entity type bar (from real data) ──────────────────────────────────────

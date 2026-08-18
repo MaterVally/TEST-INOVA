@@ -8,8 +8,8 @@ import {
   Search,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getAccessToken } from "../../auth/tokenStore";
 import { fetchApi } from "../../api/fetchWithNgrok";
+import { useAuth } from "../../auth/AuthContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -24,20 +24,12 @@ interface CaseItem {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function authHeaders(): Record<string, string> {
-  const token = getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function CasesPage() {
   const navigate = useNavigate();
+  const { isLoading: authLoading } = useAuth();
 
   const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
 
@@ -52,7 +44,7 @@ export default function CasesPage() {
   async function loadCases() {
     try {
       setLoading(true);
-      const response = await fetchApi(`${API_BASE.replace(/\/$/, '')}/api/cases`, { headers: authHeaders() });
+      const response = await fetchApi(`${API_BASE.replace(/\/$/, '')}/api/cases`);
       const data = await response.json();
       // Backend returns { cases: [...] }
       setCases(Array.isArray(data) ? data : (data.cases ?? []));
@@ -63,14 +55,17 @@ export default function CasesPage() {
     }
   }
 
-  useEffect(() => { void loadCases(); }, []);
+  useEffect(() => {
+    if (authLoading) return   // wait for token to be populated
+    void loadCases();
+  }, [authLoading]);
 
   async function createCase() {
     if (!newCaseName.trim()) return;
     try {
       const response = await fetchApi(`${API_BASE.replace(/\/$/, '')}/api/cases`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newCaseName }),
       });
       if (!response.ok) throw new Error("Failed to create case");

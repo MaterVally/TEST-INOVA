@@ -11,7 +11,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { AlertTriangle, Database, Network, RefreshCw, Search, Share2, X } from 'lucide-react'
-import { getAccessToken } from '../../auth/tokenStore'
+import { useAuth } from '../../auth/AuthContext'
 import { fetchApi } from '../../api/fetchWithNgrok'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,6 +138,8 @@ export default function KnowledgeGraphPage() {
   const [error,        setError]        = useState<string | null>(null)
   const [meta,         setMeta]         = useState<NetworkPayload['meta'] | null>(null)
 
+  const { isLoading: authLoading } = useAuth()
+
   // ── Resolve case_id from localStorage (set by UploadPage / CasesPage) ─────
   const caseId = localStorage.getItem('innova_active_case_id')
 
@@ -152,12 +154,10 @@ export default function KnowledgeGraphPage() {
     setError(null)
 
     try {
-      const token   = getAccessToken()
       const apiBase = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
-      const headers = { Authorization: `Bearer ${token ?? ''}` }
 
       // Check case status before hitting the graph endpoint
-      const caseResp = await fetchApi(`${apiBase}/api/cases/${caseId}`, { headers })
+      const caseResp = await fetchApi(`${apiBase}/api/cases/${caseId}`)
       if (caseResp.ok) {
         const caseData = await caseResp.json() as { status?: string }
         if (caseData.status === 'processing') {
@@ -172,7 +172,7 @@ export default function KnowledgeGraphPage() {
         }
       }
 
-      const response = await fetchApi(`${apiBase}/api/graph/network?case_id=${encodeURIComponent(caseId)}`, { headers })
+      const response = await fetchApi(`${apiBase}/api/graph/network?case_id=${encodeURIComponent(caseId)}`)
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
@@ -192,7 +192,10 @@ export default function KnowledgeGraphPage() {
     }
   }, [caseId, setEdges, setNodes])
 
-  useEffect(() => { void loadGraph() }, [loadGraph])
+  useEffect(() => {
+    if (authLoading) return   // wait for token before fetching
+    void loadGraph()
+  }, [loadGraph, authLoading])
 
   // ── Filter helpers ────────────────────────────────────────────────────────
 

@@ -224,7 +224,6 @@ class MMKGBuilder:
         extractor = TextEntityExtractor(
             working_dir=self.working_dir,
             cache_dir=_cache_path,
-            storage_dir=self.working_dir,
             workspace_id=self.workspace_id,
         )
         await extractor.text_entity_extraction(new_chunks)

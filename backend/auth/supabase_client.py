@@ -41,5 +41,9 @@ async def get_supabase_client() -> AsyncClient:
             "Add it to your .env file or environment before starting the server."
         )
 
-    _client = await create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    try:
+        _client = await create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    except Exception:
+        _client = None  # reset so next request retries instead of reusing a bad state
+        raise
     return _client

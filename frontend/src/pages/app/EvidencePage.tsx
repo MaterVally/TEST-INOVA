@@ -19,7 +19,7 @@ import {
   Network, RefreshCw, Search, Share2, X,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { getAccessToken } from '../../auth/tokenStore'
+import { useAuth } from '../../auth/AuthContext'
 import { fetchApi } from '../../api/fetchWithNgrok'
 
 const API = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '') + '/api'
@@ -68,17 +68,13 @@ function typeStyle(t: string) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function authHdr(): Record<string, string> {
-  const t = getAccessToken()
-  return t ? { Authorization: `Bearer ${t}` } : {}
-}
-
 function clean(s: string) { return s.replace(/"/g, '').trim() }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function EvidencePage() {
   const navigate = useNavigate()
+  const { isLoading: authLoading } = useAuth()
   const caseId   = localStorage.getItem('innova_active_case_id')
 
   const [summary,   setSummary]   = useState<GraphSummary | null>(null)
@@ -98,9 +94,9 @@ export default function EvidencePage() {
     try {
       const qs = `?case_id=${encodeURIComponent(caseId)}`
       const [rSum, rEnt, rRel] = await Promise.all([
-        fetchApi(`${API}/graph/summary${qs}`,       { headers: authHdr() }),
-        fetchApi(`${API}/graph/entities${qs}&limit=300`, { headers: authHdr() }),
-        fetchApi(`${API}/graph/relationships${qs}&limit=500`, { headers: authHdr() }),
+        fetchApi(`${API}/graph/summary${qs}`),
+        fetchApi(`${API}/graph/entities${qs}&limit=300`),
+        fetchApi(`${API}/graph/relationships${qs}&limit=500`),
       ])
       if (!rSum.ok) throw new Error(`Graph summary: ${rSum.status}`)
       if (!rEnt.ok) throw new Error(`Entities: ${rEnt.status}`)
@@ -115,7 +111,10 @@ export default function EvidencePage() {
     } finally { setLoading(false) }
   }, [caseId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    if (authLoading) return   // wait for token before fetching
+    void load()
+  }, [load, authLoading])
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const allTypes = useMemo(

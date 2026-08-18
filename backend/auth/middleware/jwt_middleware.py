@@ -12,6 +12,8 @@ Requirements: 3.1–3.4, 4.2–4.4, 9.1–9.5
 """
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import time
 from typing import Any
@@ -50,6 +52,24 @@ class AuthContext(BaseModel):
     user_id: str      # sub claim (UUID)
     role: str         # role claim: Admin | Analyst | Viewer
     workspace_id: str  # from X-Workspace-ID header, validated against DB
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _peek_token_alg(token: str) -> str:
+    """Return the `alg` value from the JWT header without full verification."""
+    try:
+        header_b64 = token.split(".")[0]
+        # Add padding
+        padding = 4 - len(header_b64) % 4
+        if padding != 4:
+            header_b64 += "=" * padding
+        header = json.loads(base64.urlsafe_b64decode(header_b64))
+        return header.get("alg", "").upper()
+    except Exception:
+        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -115,23 +135,19 @@ async def get_current_user(
 
     token: str = credentials.credentials
 
-    # ── 2. Fetch JWKS (with caching) ──────────────────────────────────────
-    try:
-        jwks = await _get_jwks()
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail={"error": "auth_service_unavailable"},
-        ) from exc
+    # ── 2. Peek at the token header to decide which path to take ──────────
+    token_alg = _peek_token_alg(token)
+    use_hs256 = bool(SUPABASE_JWT_SECRET) and token_alg in ("", "HS256")
+    use_jwks  = token_alg in ("RS256", "ES256", "")  # "" = try both
 
-    # ── 3. Decode & verify the JWT ────────────────────────────────────────
-    # Supabase may sign with HS256 (JWT secret) or ES256/RS256 (JWKS).
-    # Try HS256 first, then fall back to JWKS for asymmetric algorithms.
+    # ── 3. Fast-path: HS256 with the JWT secret ───────────────────────────
+    #    Only attempt if the token header actually declares HS256 (or is
+    #    unreadable). Newer Supabase projects use ES256 — attempting HS256
+    #    on those tokens causes python-jose to raise "alg not allowed".
     payload: dict[str, Any] | None = None
     last_error: Exception | None = None
 
-    # Attempt 1: HS256 with the JWT secret (older Supabase projects)
-    if SUPABASE_JWT_SECRET:
+    if use_hs256:
         try:
             payload = jwt.decode(
                 token,
@@ -144,8 +160,16 @@ async def get_current_user(
             logger.warning("HS256 decode failed: %s | token_prefix=%s", exc, token[:40])
             last_error = exc
 
-    # Attempt 2: ES256/RS256 via JWKS (newer Supabase projects using asymmetric keys)
-    if payload is None:
+    # ── 4. Fallback / primary: ES256/RS256 via JWKS ───────────────────────
+    if payload is None and use_jwks:
+        try:
+            jwks = await _get_jwks()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"error": "auth_service_unavailable"},
+            ) from exc
+
         try:
             payload = jwt.decode(
                 token,

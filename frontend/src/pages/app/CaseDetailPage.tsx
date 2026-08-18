@@ -26,7 +26,6 @@ import {
   Save,
   X,
 } from 'lucide-react'
-import { getAccessToken } from '../../auth/tokenStore'
 import { useAuth } from '../../auth/AuthContext'
 import { fetchApi } from '../../api/fetchWithNgrok'
 
@@ -42,10 +41,8 @@ interface Case {
 // ─── Helpers ─────────────────────────────────────────────
 const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
 
-function authHeaders(workspaceId?: string | null): Record<string, string> {
-  const token = getAccessToken()
+function extraHeaders(workspaceId?: string | null): Record<string, string> {
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) h['Authorization'] = `Bearer ${token}`
   if (workspaceId) h['X-Workspace-ID'] = workspaceId
   return h
 }
@@ -64,7 +61,7 @@ function timeAgo(iso: string) {
 export default function CaseDetailPage() {
   const { id: caseId } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { workspaceId } = useAuth()
+  const { workspaceId, isLoading: authLoading } = useAuth()
 
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [loading, setLoading] = useState(true)
@@ -83,11 +80,11 @@ export default function CaseDetailPage() {
 
   // ── Load case ─────────────────────────────────────────
   useEffect(() => {
-    if (!caseId) return
+    if (!caseId || authLoading) return
     void (async () => {
       try {
         const resp = await fetchApi(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
-          headers: authHeaders(workspaceId),
+          headers: extraHeaders(workspaceId),
         })
         if (!resp.ok) throw new Error(`Case not found (${resp.status})`)
         const data: Case = await resp.json()
@@ -100,7 +97,7 @@ export default function CaseDetailPage() {
         setLoading(false)
       }
     })()
-  }, [caseId, workspaceId])
+  }, [caseId, workspaceId, authLoading])
 
   // ── Save edits ────────────────────────────────────────
   async function handleSave() {
@@ -109,7 +106,7 @@ export default function CaseDetailPage() {
     try {
       const resp = await fetchApi(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
         method: 'PATCH',
-        headers: authHeaders(workspaceId),
+        headers: extraHeaders(workspaceId),
         body: JSON.stringify({
           title: editTitle.trim() || undefined,
           description: editDesc,
@@ -135,7 +132,7 @@ export default function CaseDetailPage() {
     try {
       const resp = await fetchApi(`${API_BASE}/api/cases/${encodeURIComponent(caseId)}`, {
         method: 'DELETE',
-        headers: authHeaders(workspaceId),
+        headers: extraHeaders(workspaceId),
       })
       if (!resp.ok) throw new Error(`Error ${resp.status}`)
       localStorage.removeItem('innova_active_case_id')
