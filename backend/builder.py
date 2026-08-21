@@ -186,7 +186,7 @@ class MMKGBuilder:
         texts, _images = await processor.process()
 
         text_chunking = TextChunking(working_dir=self.working_dir)
-        await text_chunking.text_chunking(texts)
+        await text_chunking.text_chunking(texts, file_name=Path(file_path).name)
 
     async def _step_text_extraction(self):
         logger.info("📝 Step 2/5 — Text entity extraction")

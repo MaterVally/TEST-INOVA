@@ -84,11 +84,23 @@ class EvidenceEngine:
 
             node = graph.nodes[entity_name]
 
+            source_ids = [
+                s.strip()
+                for s in node.get("source_id", "").split("<SEP>")
+                if s.strip()
+            ]
+            source_files = sorted(set(
+                text_chunks[sid].get("file_name", "unknown")
+                for sid in source_ids
+                if sid in text_chunks
+            ))
+
             evidence["entities"].append({
-                "name":        entity_name,
-                "type":        node.get("entity_type", "UNKNOWN").replace('"', ""),
-                "confidence":  round(similarity, 3),
-                "description": node.get("description", ""),
+                "name":         entity_name,
+                "type":         node.get("entity_type", "UNKNOWN").replace('"', ""),
+                "confidence":   round(similarity, 3),
+                "description":  node.get("description", ""),
+                "source_files": source_files,
             })
 
             for raw_sid in node.get("source_id", "").split("<SEP>"):
@@ -101,9 +113,10 @@ class EvidenceEngine:
                     continue
                 content = chunk.get("content", "")
                 evidence["text_chunks"].append({
-                    "chunk_id": sid,
-                    "text":     content,
-                    "tokens":   len(content.split()),
+                    "chunk_id":    sid,
+                    "text":        content,
+                    "tokens":      len(content.split()),
+                    "source_file": chunk.get("file_name", "unknown"),
                 })
 
         # -------------------------------------------------------

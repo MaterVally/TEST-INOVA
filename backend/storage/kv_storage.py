@@ -14,6 +14,7 @@ class TextChunkSchema(TypedDict):
     content: str
     full_doc_id: str
     chunk_order_index: int
+    file_name: str  # original source document name — e.g. "Q3_report.pdf"
 
 T = TypeVar("T")
 

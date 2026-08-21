@@ -58,7 +58,7 @@ class TextChunking:
         self.full_docs   = self.key_string_value_json_storage_cls(namespace="full_docs",   storage_dir=_dir)
         self.text_chunks = self.key_string_value_json_storage_cls(namespace="text_chunks", storage_dir=_dir)
 
-    async def text_chunking(self, string_or_strings):
+    async def text_chunking(self, string_or_strings, file_name: str = None):
         if isinstance(string_or_strings, str):
             string_or_strings = [string_or_strings]
         try:
@@ -83,7 +83,11 @@ class TextChunking:
                 )
                 for chunk in chunks:
                     chunk_id = compute_mdhash_id(chunk["content"], prefix="chunk-")
-                    inserting_chunks[chunk_id] = {**chunk, "full_doc_id": doc_key}
+                    inserting_chunks[chunk_id] = {
+                        **chunk,
+                        "full_doc_id": doc_key,
+                        "file_name": file_name or "unknown",
+                    }
             missing_chunk_keys = await self.text_chunks.filter_keys(list(inserting_chunks.keys()))
             final_chunks = {k: v for k, v in inserting_chunks.items() if k in missing_chunk_keys}
             if not final_chunks:
