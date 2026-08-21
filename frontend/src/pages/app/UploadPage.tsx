@@ -18,7 +18,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { getAccessToken } from '../../auth/tokenStore'
+import { useAuth } from '../../auth/AuthContext'
 import { fetchApi } from '../../api/fetchWithNgrok'
 
 const API_BASE = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '')
@@ -106,6 +106,7 @@ function getFormatBadge(format: FileFormat) {
 
 export default function UploadPage() {
   const navigate = useNavigate()
+  const { isLoading: authLoading } = useAuth()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [files, setFiles] = useState<FileItem[]>([])
@@ -120,21 +121,21 @@ export default function UploadPage() {
   async function fetchRecentCases() {
     setLoadingCases(true)
     try {
-      const token = getAccessToken()
-      const r = await fetchApi(`${API_BASE}/api/cases`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const r = await fetchApi(`${API_BASE}/api/cases`)
       if (r.ok) {
         const d = await r.json()
         const list: RecentCase[] = Array.isArray(d) ? d : (d.cases ?? [])
-        setRecentCases(list.slice(0, 5)) // show latest 5
+        setRecentCases(list.slice(0, 5))
       }
     } catch { /* silent */ } finally {
       setLoadingCases(false)
     }
   }
 
-  useEffect(() => { void fetchRecentCases() }, [])
+  useEffect(() => {
+    if (authLoading) return   // wait for token before fetching
+    void fetchRecentCases()
+  }, [authLoading])
 
   // --- Handlers for Drag & Drop ---
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -194,7 +195,6 @@ export default function UploadPage() {
     setIsProcessing(true)
     setGlobalProgress(5)
 
-    const token = getAccessToken()
     const wsId = localStorage.getItem('innova_workspace_id')
 
     // Loop through each queued file and process via API
@@ -220,10 +220,7 @@ export default function UploadPage() {
         if (activeCaseId) formData.append('case_id', activeCaseId)
         const resp = await fetchApi(`${API_BASE}/api/upload/`, {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token ?? ''}`,
-            ...(wsId ? { 'X-Workspace-ID': wsId } : {}),
-          },
+          headers: wsId ? { 'X-Workspace-ID': wsId } : {},
           body: formData,
         })
 

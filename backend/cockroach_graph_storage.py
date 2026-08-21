@@ -95,13 +95,18 @@ class CockroachGraphStorage(BaseGraphStorage):
         pool = await self._pool()
         async with pool.connection() as conn:
             row = await (await conn.execute(
-                "SELECT description, weight FROM graph_edges "
+                "SELECT description, weight, source_id FROM graph_edges "
                 "WHERE workspace_id=%s AND source_id=%s AND target_id=%s",
                 (self.workspace_id, source_node_id, target_node_id),
             )).fetchone()
             if not row:
                 return None
-            return {"description": row[0], "weight": row[1]}
+            return {
+                "description": row[0],
+                "weight":      row[1],
+                "source_id":   row[2] or "",
+                "order":       1,          # order not stored in DB; default to 1
+            }
 
     async def get_node_edges(self, source_node_id: str):
         pool = await self._pool()
@@ -236,13 +241,17 @@ class CockroachGraphStorage(BaseGraphStorage):
                 )
 
     async def index_done_callback(self):
-        # NetworkXStorage writes the whole .graphml file here. CockroachDB
-        # already persisted every upsert individually above, so there's
-        # nothing batched left to flush — this is just a no-op for
-        # interface compatibility with callers that await it.
+        # CockroachDB already persisted every upsert individually — nothing batched to flush.
+        # Optionally write a local GraphML snapshot for debugging if storage_dir is set.
         if not self.storage_dir:
             return
-        os.makedirs(self.storage_dir, exist_ok=True)
-        await self.export_graphml(
-            os.path.join(self.storage_dir, f"graph_{self.namespace}.graphml")
-        )
+        try:
+            os.makedirs(self.storage_dir, exist_ok=True)
+            await self.export_graphml(
+                os.path.join(self.storage_dir, f"graph_{self.namespace}.graphml")
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                "CockroachGraphStorage: could not write GraphML snapshot: %s", exc
+            )

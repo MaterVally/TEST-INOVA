@@ -25,7 +25,6 @@ import {
   Trash2,
   User,
 } from 'lucide-react'
-import { getAccessToken } from '../../auth/tokenStore'
 import { fetchApi } from '../../api/fetchWithNgrok'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,14 +230,9 @@ export default function AIAssistantPage() {
         throw new Error('No active case. Upload a document first or open a case.')
       }
 
-      const token = getAccessToken()
-
       const resp = await fetchApi(`${API_BASE.replace(/\/$/, '')}/api/query/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token ?? ''}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           case_id:  caseId,
           session_id: sessionId,

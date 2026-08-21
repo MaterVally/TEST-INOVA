@@ -16,7 +16,6 @@ import {
   RefreshCw, Send, Share2, Sparkles,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { getAccessToken } from '../../auth/tokenStore'
 import { fetchApi } from '../../api/fetchWithNgrok'
 
 const API = ((import.meta.env.VITE_API_BASE as string) || '').replace(/\/$/, '') + '/api'
@@ -51,11 +50,6 @@ interface Report {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function authHdr(): Record<string, string> {
-  const t = getAccessToken()
-  return t ? { Authorization: `Bearer ${t}` } : {}
-}
 
 function Section({
   title, icon, count, color, children, open: defaultOpen = false,
@@ -100,7 +94,7 @@ export default function ReportsPage() {
     try {
       const resp = await fetchApi(`${API}/report/`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', ...authHdr() },
+        headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ case_id: caseId, question: question.trim(), top_k: 10 }),
       })
       if (!resp.ok) {
@@ -119,7 +113,7 @@ export default function ReportsPage() {
     if (!caseId) return
     setFetching(true); setError(null)
     try {
-      const resp = await fetchApi(`${API}/report/${encodeURIComponent(caseId)}`, { headers: authHdr() })
+      const resp = await fetchApi(`${API}/report/${encodeURIComponent(caseId)}`)
       if (!resp.ok) {
         if (resp.status === 404) throw new Error('No report found for this case. Generate one first.')
         throw new Error(`Error ${resp.status}`)

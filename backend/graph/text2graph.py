@@ -169,6 +169,7 @@ class TextEntityExtractor:
         self.graph = self.graph_storage_cls(
             namespace="chunk_entity_relation",
             workspace_id=self.workspace_id,
+            storage_dir=self.working_dir,
         )
 
     async def text_entity_extraction(self, chunks: dict):
