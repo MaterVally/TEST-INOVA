@@ -21,6 +21,7 @@ from ..llm import multimodel_if_cache
 from ..storage.graph_storage import BaseGraphStorage, NetworkXStorage
 from ..storage.kv_storage import BaseKVStorage, JsonKVStorage, StorageNameSpace
 from ..utils.base import (
+    clean_str,
     limit_async_func_call,
     load_json,
     logger,
@@ -239,9 +240,9 @@ async def build_original_image_entity(image_path: str, feature_entities: list[st
     entity_pattern = r'\"entity\"\<\|\>\"([^\"]+?)\"'
     results.extend(
         _build_relationship_string(
-            entity_name,
+            clean_str(entity_name.upper()),
             filename,
-            f"{entity_name} is an entity extracted from {filename}.",
+            f"{clean_str(entity_name.upper())} is an entity extracted from {filename}.",
         )
         for entity_name in re.findall(entity_pattern, extracted_result)
     )
